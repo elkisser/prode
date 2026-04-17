@@ -49,11 +49,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signUp: async (email, password, username, redirectTo) => {
     const safeRedirect = redirectTo && redirectTo.startsWith('/') ? redirectTo : '/dashboard';
+    const configuredSiteUrl = (import.meta.env.VITE_SITE_URL as string | undefined) || '';
+    const siteOrigin = configuredSiteUrl.trim().replace(/\/$/, '') || window.location.origin;
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(safeRedirect)}`,
+        emailRedirectTo: `${siteOrigin}/auth/callback?redirect=${encodeURIComponent(safeRedirect)}`,
         data: {
           username,
         },
