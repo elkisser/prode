@@ -11,6 +11,7 @@ import { LeaguePage } from '@/pages/LeaguePage';
 import { MatchesPage } from '@/pages/MatchesPage';
 import { LeaguesPage } from '@/pages/LeaguesPage';
 import { ProfilePage } from '@/pages/ProfilePage';
+import { InvitePage } from '@/pages/InvitePage';
 import { useRealtimePredictions, useRealtimeLeagueMembers, useRealtimeMatches } from '@/hooks/useRealtime';
 import { isSupabaseConfigured } from '@/lib/supabase';
 
@@ -60,6 +61,8 @@ function AppContent() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
         </Route>
+
+        <Route path="/invite/:inviteCode" element={<InvitePage />} />
 
         <Route element={<ProtectedLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />

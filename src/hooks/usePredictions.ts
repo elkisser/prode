@@ -38,6 +38,23 @@ export function useCreatePrediction() {
   const user = useAuthStore((state) => state.user);
 
   return useMutation({
+    onMutate: async ({ match_id, home_score, away_score }) => {
+      if (!user) return;
+
+      const key = ['prediction', user.id, match_id];
+      const prev = queryClient.getQueryData(key);
+
+      queryClient.setQueryData(key, (current: any) => ({
+        ...(current || {}),
+        match_id,
+        user_id: user.id,
+        home_score,
+        away_score,
+        points: 0,
+      }));
+
+      return { prev, key };
+    },
     mutationFn: async ({ match_id, home_score, away_score }: CreatePredictionInput) => {
       if (!user) throw new Error('Not authenticated');
 
@@ -47,52 +64,55 @@ export function useCreatePrediction() {
         points: 0,
       };
 
-      const { error } = await supabase
-        .from(SUPABASE_TABLES.PREDICTIONS)
-        .upsert(
-          {
-            ...base,
-            home_score,
-            away_score,
-          },
-          { onConflict: 'user_id,match_id' }
-        );
+      const payloads: any[] = [
+        // 1) Máxima compatibilidad: si existen ambos pares de columnas y/o ambos son NOT NULL
+        {
+          ...base,
+          home_score,
+          away_score,
+          predicted_home: home_score,
+          predicted_away: away_score,
+        },
+        // 2) Esquema nuevo
+        {
+          ...base,
+          home_score,
+          away_score,
+        },
+        // 3) Esquema legacy
+        {
+          ...base,
+          predicted_home: home_score,
+          predicted_away: away_score,
+        },
+      ];
 
-      if (!error) return;
+      let lastError: any = null;
+      for (const payload of payloads) {
+        const { error } = await supabase
+          .from(SUPABASE_TABLES.PREDICTIONS)
+          .upsert(payload, { onConflict: 'user_id,match_id' });
+        if (!error) return;
+        lastError = error;
+      }
 
-      const shouldRetryLegacy =
-        error?.code === 'PGRST204' ||
-        (error?.code === '23502' && String(error?.message || '').includes('predicted_home')) ||
-        String(error?.message || '').includes("predicted_home") ||
-        String(error?.message || '').includes("predicted_away");
-
-      if (!shouldRetryLegacy) throw error;
-
-      const { error: error2 } = await supabase
-        .from(SUPABASE_TABLES.PREDICTIONS)
-        .upsert(
-          {
-            ...base,
-            predicted_home: home_score,
-            predicted_away: away_score,
-          } as any,
-          { onConflict: 'user_id,match_id' }
-        );
-
-      if (error2) throw error2;
+      throw lastError;
+    },
+    onError: (error: any, _vars, ctx: any) => {
+      if (ctx?.key) {
+        queryClient.setQueryData(ctx.key, ctx.prev);
+      }
+      if (error?.code === '23505') {
+        toast.error('Ya has predicho este partido');
+      } else if (error?.code === 'PGRST204') {
+        toast.error('La tabla predictions no tiene las columnas esperadas (schema cache).');
+      } else {
+        toast.error('Error al guardar predicción');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['predictions'] });
       toast.success('Predicción guardada');
-    },
-    onError: (error: any) => {
-      if (error?.code === '23505') {
-        toast.error('Ya has predicho este partido');
-      } else if (error?.code === 'PGRST204') {
-        toast.error('La tabla predictions no tiene las columnas home_score/away_score (o el schema cache no se recargó). Recarga el schema de PostgREST y/o ejecuta el ALTER TABLE.');
-      } else {
-        toast.error('Error al guardar predicción');
-      }
     },
   });
 }

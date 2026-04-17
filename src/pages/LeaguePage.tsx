@@ -5,8 +5,9 @@ import { useLeagueStandings } from '@/hooks/useLeagues';
 import { useMatches, useSyncMatches } from '@/hooks/useMatches';
 import { MatchCard } from '@/components/MatchCard';
 import { StandingsTable } from '@/components/StandingsTable';
-import { ChevronLeft } from '@/components/Icons';
+import { ChevronLeft, Share2 } from '@/components/Icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 
 export function LeaguePage() {
   const { leagueId } = useParams<{ leagueId: string }>();
@@ -36,13 +37,28 @@ export function LeaguePage() {
 
   const scoringMode = (league?.scoring_mode as 'simple' | 'exact') || 'exact';
 
+  const live = useMemo(() => {
+    return matches
+      .filter((m) => m.status === 'in_progress')
+      .slice()
+      .sort((a, b) => String(a.match_date).localeCompare(String(b.match_date)));
+  }, [matches]);
+
   const upcoming = useMemo(() => {
-    return matches.filter((m) => m.home_score === null && m.away_score === null && m.status !== 'finished');
+    return matches
+      .filter((m) => m.status === 'pending' && m.home_score === null && m.away_score === null)
+      .slice()
+      .sort((a, b) => String(a.match_date).localeCompare(String(b.match_date)));
   }, [matches]);
 
   const finished = useMemo(() => {
     return matches
-      .filter((m) => !(m.home_score === null && m.away_score === null) || m.status === 'finished')
+      .filter(
+        (m) =>
+          m.status === 'finished' ||
+          m.status === 'cancelled' ||
+          ((m.home_score !== null || m.away_score !== null) && m.status !== 'in_progress')
+      )
       .slice()
       .sort((a, b) => String(b.match_date).localeCompare(String(a.match_date)));
   }, [matches]);
@@ -75,6 +91,29 @@ export function LeaguePage() {
 
   useEffect(() => {
     if (activeTab !== 'matches') return;
+    if (!league?.competition_id) return;
+
+    const competitionId = String(league.competition_id);
+    const intervalMs = live.length > 0 ? 60_000 : 300_000;
+
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (syncMatches.isPending) return;
+      syncMatches.mutate({ competitionId, silent: true });
+    };
+
+    tick();
+    const id = window.setInterval(tick, intervalMs);
+    const onFocus = () => tick();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [activeTab, league?.competition_id, live.length, syncMatches.isPending]);
+
+  useEffect(() => {
+    if (activeTab !== 'matches') return;
     setFinishedPage(0);
   }, [activeTab, league?.competition_id]);
 
@@ -100,6 +139,35 @@ export function LeaguePage() {
     if (!el) return;
     el.style.transform = `translate3d(-${safePage * 100}%, 0, 0)`;
   }, [safePage]);
+
+  const inviteUrl = league?.invite_code ? `${window.location.origin}/invite/${league.invite_code}` : '';
+
+  const handleCopyInviteLink = useCallback(async () => {
+    if (!inviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      toast.success('Link copiado');
+    } catch {
+      toast.error('No se pudo copiar');
+    }
+  }, [inviteUrl]);
+
+  const handleShareInviteLink = useCallback(async () => {
+    if (!inviteUrl) return;
+    const canShare = typeof (navigator as any)?.share === 'function';
+    if (!canShare) {
+      await handleCopyInviteLink();
+      return;
+    }
+    try {
+      await (navigator as any).share({
+        title: league?.name ? `Invitación a ${league.name}` : 'Invitación a liga',
+        url: inviteUrl,
+      });
+    } catch {
+      // usuario canceló o share falló; no hacer toast de error
+    }
+  }, [inviteUrl, league?.name, handleCopyInviteLink]);
 
   if (!leagueId) {
     return <div className="p-8 text-center">Liga no encontrada</div>;
@@ -135,10 +203,23 @@ export function LeaguePage() {
                 </h1>
               </div>
               <div className="flex items-center justify-end">
-                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-dark-800/50 border border-white/5">
-                  <code className="text-xs font-black text-primary-400 tracking-widest uppercase">
+                <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-dark-800/50 border border-white/5">
+                  <button
+                    type="button"
+                    onClick={handleCopyInviteLink}
+                    className="text-xs font-black text-primary-400 tracking-widest uppercase"
+                    aria-label="Copiar código"
+                  >
                     {league?.invite_code}
-                  </code>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleShareInviteLink}
+                    className="text-dark-300 hover:text-white transition-colors"
+                    aria-label="Compartir o copiar link de invitación"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -195,7 +276,22 @@ export function LeaguePage() {
                 </span>
                 <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-dark-800/50 border border-white/5">
                   <span className="text-[10px] text-dark-400 font-bold uppercase tracking-tighter">Código:</span>
-                  <code className="text-xs md:text-sm font-black text-primary-400 tracking-widest uppercase">{league?.invite_code}</code>
+                  <button
+                    type="button"
+                    onClick={handleCopyInviteLink}
+                    className="text-xs md:text-sm font-black text-primary-400 tracking-widest uppercase"
+                    aria-label="Copiar código"
+                  >
+                    {league?.invite_code}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleShareInviteLink}
+                    className="text-dark-300 hover:text-white transition-colors"
+                    aria-label="Compartir o copiar link de invitación"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
               <h1 className="text-3xl md:text-5xl font-black text-white leading-tight">
@@ -254,6 +350,31 @@ export function LeaguePage() {
                 </div>
               ) : (
                 <>
+                  {live.length > 0 ? (
+                    <section className="space-y-5">
+                      <div className="glass-card rounded-[2.5rem] p-6 border-white/5 relative overflow-hidden">
+                        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-red-500/70 to-red-400/30" />
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-3">
+                              <h2 className="text-xl font-black text-white">En vivo</h2>
+                              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-300 text-[10px] font-black uppercase tracking-widest shadow-[0_0_0_1px_rgba(239,68,68,0.06),0_0_32px_rgba(239,68,68,0.15)]">
+                                <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+                                LIVE
+                              </span>
+                            </div>
+                            <p className="text-xs text-dark-500 font-bold uppercase tracking-widest mt-1">
+                              {live.length} partido{live.length === 1 ? '' : 's'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      {live.map((match) => (
+                        <MatchCard key={match.id} match={match} scoringMode={scoringMode} showPrediction={false} />
+                      ))}
+                    </section>
+                  ) : null}
+
                   {finished.length > 0 ? (
                     <section className="space-y-5">
                       <div className="glass-card rounded-[2.5rem] p-6 border-white/5">
@@ -282,20 +403,34 @@ export function LeaguePage() {
                           </div>
                         </div>
                         {canSlide ? (
-                          <div className="mt-4 flex items-center justify-between">
-                            <div className="flex items-center gap-1.5">
-                              {Array.from({ length: pageCount }).map((_, i) => (
-                                <button
-                                  key={i}
-                                  type="button"
-                                  onClick={() => setFinishedPage(i)}
-                                  className={`h-1.5 rounded-full transition-all ${
-                                    i === safePage ? 'w-8 bg-primary-400' : 'w-3 bg-dark-700 hover:bg-dark-600'
-                                  }`}
-                                />
-                              ))}
+                          <div className="mt-4 flex items-center justify-between gap-4">
+                            <div className="hidden md:flex items-center gap-1.5">
+                              {(pageCount <= 10 ? Array.from({ length: pageCount }) : Array.from({ length: 8 })).map((_, i) => {
+                                const target = pageCount <= 10 ? i : Math.round((i / 7) * (pageCount - 1));
+                                const active = target === safePage;
+                                return (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => setFinishedPage(target)}
+                                    className={`h-1.5 rounded-full transition-all ${
+                                      active ? 'w-8 bg-primary-400' : 'w-3 bg-dark-700 hover:bg-dark-600'
+                                    }`}
+                                  />
+                                );
+                              })}
                             </div>
-                            <div className="text-[10px] text-dark-500 font-bold uppercase tracking-widest">
+
+                            <div className="md:hidden flex-1">
+                              <div className="h-2 rounded-full bg-dark-800/60 border border-white/5 overflow-hidden">
+                                <div
+                                  className="h-full bg-primary-400 transition-[width] duration-500 ease-out"
+                                  style={{ width: `${Math.round(((safePage + 1) / pageCount) * 100)}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="text-[10px] text-dark-500 font-bold uppercase tracking-widest shrink-0 tabular-nums">
                               {safePage + 1}/{pageCount}
                             </div>
                           </div>
@@ -305,7 +440,7 @@ export function LeaguePage() {
                       <div className="relative overflow-hidden">
                         <div
                           ref={finishedTrackRef}
-                          className="flex w-full transition-transform duration-500 ease-out"
+                          className="flex w-full transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
                           style={{ transform: 'translate3d(0,0,0)' }}
                         >
                           {finishedPages.map((page, idx) => (
@@ -314,36 +449,61 @@ export function LeaguePage() {
                                 {page.map((m) => (
                                   <div
                                     key={m.id}
-                                    className="glass-card rounded-[2rem] p-5 border-white/5 overflow-hidden relative"
+                                    className="glass-card rounded-[2.25rem] p-5 border-white/5 overflow-hidden relative"
                                   >
                                     <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary-500/40 to-secondary-500/40" />
                                     <div className="flex items-center justify-between mb-4 pt-1">
-                                      <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg bg-primary-500/10 text-primary-300 border border-primary-500/20">
-                                        Finalizado
+                                      <span
+                                        className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg border ${
+                                          m.status === 'cancelled'
+                                            ? 'bg-dark-800/40 text-dark-300 border-white/5'
+                                            : 'bg-primary-500/10 text-primary-300 border-primary-500/20'
+                                        }`}
+                                      >
+                                        {m.status === 'cancelled' ? 'Cancelado' : 'Finalizado'}
                                       </span>
                                       <time className="text-[10px] text-dark-500 font-bold" dateTime={String(m.match_date)}>
                                         {String(m.match_date).slice(0, 10)}
                                       </time>
                                     </div>
-                                    <div className="flex items-center justify-between gap-3">
+                                    <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
                                       <div className="flex items-center gap-2 min-w-0">
                                         {m.home_logo ? (
-                                          <img src={String(m.home_logo).trim().replace(/`/g, '')} alt="" className="w-9 h-9 object-contain" />
+                                          <img
+                                            src={String(m.home_logo).trim().replace(/`/g, '')}
+                                            alt=""
+                                            className="w-10 h-10 object-contain"
+                                          />
                                         ) : null}
-                                        <span className="font-black text-white text-sm truncate hidden md:inline">{m.home_team}</span>
+                                        <span className="sr-only">{m.home_team}</span>
                                       </div>
-                                      <div className="flex items-center gap-2 shrink-0 px-3 py-2 rounded-2xl bg-dark-900/40 border border-white/5">
-                                        <span className="text-2xl font-black text-white">{m.home_score}</span>
-                                        <span className="text-dark-600 font-black text-xl">:</span>
-                                        <span className="text-2xl font-black text-white">{m.away_score}</span>
+
+                                      <div className="flex justify-center">
+                                        <div className="px-4 py-3 rounded-2xl bg-dark-900/40 border border-white/5 text-center min-w-[92px]">
+                                          <div className="text-[10px] font-black uppercase tracking-widest text-dark-600">
+                                            Resultado
+                                          </div>
+                                          <div className="mt-1 flex items-center justify-center gap-2">
+                                            <span className="text-3xl font-black text-white">
+                                              {m.home_score ?? '—'}
+                                            </span>
+                                            <span className="text-dark-600 font-black text-2xl">:</span>
+                                            <span className="text-3xl font-black text-white">
+                                              {m.away_score ?? '—'}
+                                            </span>
+                                          </div>
+                                        </div>
                                       </div>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-3 mt-3">
-                                      <div className="flex items-center gap-2 min-w-0">
+
+                                      <div className="flex items-center gap-2 min-w-0 justify-end">
                                         {m.away_logo ? (
-                                          <img src={String(m.away_logo).trim().replace(/`/g, '')} alt="" className="w-9 h-9 object-contain" />
+                                          <img
+                                            src={String(m.away_logo).trim().replace(/`/g, '')}
+                                            alt=""
+                                            className="w-10 h-10 object-contain"
+                                          />
                                         ) : null}
-                                        <span className="font-black text-white text-sm truncate hidden md:inline">{m.away_team}</span>
+                                        <span className="sr-only">{m.away_team}</span>
                                       </div>
                                     </div>
                                   </div>

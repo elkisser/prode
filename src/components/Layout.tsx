@@ -1,11 +1,16 @@
-import { Outlet, Navigate } from 'react-router-dom';
+import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 
 export function AuthLayout() {
   const user = useAuthStore((state) => state.user);
+  const location = useLocation();
+
+  const search = new URLSearchParams(location.search);
+  const redirect = search.get('redirect');
+  const safeRedirect = redirect && redirect.startsWith('/') ? redirect : '/dashboard';
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={safeRedirect} replace />;
   }
 
   return <Outlet />;

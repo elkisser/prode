@@ -32,7 +32,7 @@ export function MatchCard({ match, showPrediction = true, scoringMode = 'exact' 
   const [homeScore, setHomeScore] = useState('');
   const [awayScore, setAwayScore] = useState('');
   const [isEditing, setIsEditing] = useState(false);
-  const canPredict = match.home_score === null && match.away_score === null && match.status !== 'finished';
+  const canPredict = match.status === 'pending' && match.home_score === null && match.away_score === null;
   const predictedWinner =
     prediction && typeof prediction.home_score === 'number' && typeof prediction.away_score === 'number'
       ? getWinnerFromScores(prediction.home_score, prediction.away_score)
@@ -47,6 +47,13 @@ export function MatchCard({ match, showPrediction = true, scoringMode = 'exact' 
       setWinner(getWinnerFromScores(prediction.home_score, prediction.away_score));
     }
   }, [prediction]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    if (match.status !== 'pending') {
+      setIsEditing(false);
+    }
+  }, [isEditing, match.status]);
 
   const handleSavePrediction = async () => {
     let home: number;
@@ -74,12 +81,12 @@ export function MatchCard({ match, showPrediction = true, scoringMode = 'exact' 
     }
 
     try {
+      setIsEditing(false);
       await createPrediction.mutateAsync({
         match_id: match.id,
         home_score: home,
         away_score: away,
       });
-      setIsEditing(false);
     } catch {
       // Error handled by hook
     }
@@ -95,10 +102,20 @@ export function MatchCard({ match, showPrediction = true, scoringMode = 'exact' 
             className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-xl border ${
               match.status === 'finished'
                 ? 'bg-primary-500/10 text-primary-300 border-primary-500/20'
-                : 'bg-accent-500/10 text-accent-400 border-accent-500/20'
+                : match.status === 'in_progress'
+                  ? 'bg-red-500/10 text-red-300 border-red-500/20'
+                  : match.status === 'cancelled'
+                    ? 'bg-dark-800/40 text-dark-300 border-white/5'
+                    : 'bg-accent-500/10 text-accent-400 border-accent-500/20'
             }`}
           >
-            {match.status === 'finished' ? 'Finalizado' : 'Próximo'}
+            {match.status === 'finished'
+              ? 'Finalizado'
+              : match.status === 'in_progress'
+                ? 'En vivo'
+                : match.status === 'cancelled'
+                  ? 'Cancelado'
+                  : 'Próximo'}
           </span>
           <time className="text-[10px] text-dark-500 font-bold truncate" dateTime={String(match.match_date)}>
             {formatDateTime(String(match.match_date))}
@@ -114,8 +131,8 @@ export function MatchCard({ match, showPrediction = true, scoringMode = 'exact' 
         ) : null}
       </div>
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="grid grid-cols-[auto_1fr_auto] md:grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0 md:justify-start">
           <div className="w-12 h-12 md:w-14 md:h-14 bg-dark-800/50 rounded-2xl p-2 border border-white/5">
             {match.home_logo ? (
               <img src={cleanUrl(match.home_logo) || undefined} alt="" className="w-full h-full object-contain" />
@@ -128,44 +145,59 @@ export function MatchCard({ match, showPrediction = true, scoringMode = 'exact' 
           <span className="sr-only">{match.home_team}</span>
         </div>
 
-        <div className="shrink-0">
-          {match.status === 'finished' ? (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-dark-900/40 border border-white/5">
-              <span className="text-3xl md:text-4xl font-black text-white">{match.home_score}</span>
-              <span className="text-dark-600 font-black text-2xl">:</span>
-              <span className="text-3xl md:text-4xl font-black text-white">{match.away_score}</span>
+        <div className="flex justify-center">
+          {match.status === 'finished' || match.status === 'in_progress' ? (
+            <div className="px-4 py-3 rounded-2xl bg-dark-900/40 border border-white/5 text-center">
+              {match.status === 'in_progress' ? (
+                <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-red-300">
+                  <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+                  Live
+                </div>
+              ) : (
+                <div className="text-[10px] font-black uppercase tracking-widest text-dark-600">Resultado</div>
+              )}
+              <div className="mt-1 flex items-center justify-center gap-2">
+                <span className="text-3xl md:text-4xl font-black text-white">{match.home_score ?? '—'}</span>
+                <span className="text-dark-600 font-black text-2xl">:</span>
+                <span className="text-3xl md:text-4xl font-black text-white">{match.away_score ?? '—'}</span>
+              </div>
+              {match.status === 'in_progress' && prediction ? (
+                <div className="text-[10px] font-black uppercase tracking-widest text-dark-500 mt-2">
+                  Pronóstico bloqueado
+                </div>
+              ) : null}
             </div>
           ) : prediction && !isEditing ? (
             scoringMode === 'simple' ? (
-              <div className="px-4 py-3 rounded-2xl bg-primary-500/10 border border-primary-500/20">
-                <div className="text-[10px] font-black uppercase tracking-widest text-primary-500/60 text-center">
+              <div className="px-4 py-3 rounded-2xl bg-primary-500/10 border border-primary-500/20 text-center max-w-[18rem]">
+                <div className="text-[10px] font-black uppercase tracking-widest text-primary-500/60">
                   Tu Pronóstico
                 </div>
-                <div className="text-sm font-black text-primary-200 text-center">
+                <div className="text-sm font-black text-primary-200 mt-1">
                   {getWinnerLabel(getWinnerFromScores(prediction.home_score, prediction.away_score), match)}
                 </div>
               </div>
             ) : (
-              <div className="px-4 py-3 rounded-2xl bg-primary-500/10 border border-primary-500/20">
-                <div className="text-[10px] font-black uppercase tracking-widest text-primary-500/60 text-center">
+              <div className="px-4 py-3 rounded-2xl bg-primary-500/10 border border-primary-500/20 text-center">
+                <div className="text-[10px] font-black uppercase tracking-widest text-primary-500/60">
                   Tu Predicción
                 </div>
-                <div className="text-sm font-black text-primary-200 text-center">
+                <div className="text-sm font-black text-primary-200 mt-1">
                   {prediction.home_score} - {prediction.away_score}
                 </div>
               </div>
             )
           ) : (
-            <div className="px-4 py-3 rounded-2xl bg-dark-900/30 border border-white/5">
-              <div className="text-[10px] font-black uppercase tracking-widest text-dark-600 text-center">
+            <div className="px-4 py-3 rounded-2xl bg-dark-900/30 border border-white/5 text-center">
+              <div className="text-[10px] font-black uppercase tracking-widest text-dark-600">
                 Pronóstico
               </div>
-              <div className="text-sm font-black text-dark-400 text-center">—</div>
+              <div className="text-sm font-black text-dark-400 mt-1">—</div>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-3 min-w-0 justify-end">
+        <div className="flex items-center gap-3 min-w-0 md:justify-end justify-end">
           <div className="min-w-0 text-right hidden md:block">
             <div className="text-[11px] font-black uppercase tracking-widest text-dark-500">Visitante</div>
             <div className="font-black text-white text-sm md:text-base truncate">{match.away_team}</div>
