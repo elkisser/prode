@@ -49,7 +49,12 @@ export function useSyncMatches() {
       return total;
     },
     onSuccess: (count, params) => {
-      queryClient.invalidateQueries({ queryKey: ['matches'] });
+      if (count > 0) {
+        const normalizedCompetitionId = normalizeCompetitionId(params?.competitionId);
+        queryClient.invalidateQueries({
+          queryKey: normalizedCompetitionId ? ['matches', normalizedCompetitionId] : ['matches'],
+        });
+      }
       if (params?.silent) return;
       if (count > 0) {
         toast.success(`${count} partidos sincronizados`);

@@ -15,6 +15,7 @@ export function LeaguePage() {
   const [finishedPage, setFinishedPage] = useState(0);
   const [finishedPageSize, setFinishedPageSize] = useState(3);
   const finishedTrackRef = useRef<HTMLDivElement | null>(null);
+  const syncPendingRef = useRef(false);
 
   const { data: league, isLoading: leagueLoading } = useQuery({
     queryKey: ['league', leagueId],
@@ -43,6 +44,7 @@ export function LeaguePage() {
       .slice()
       .sort((a, b) => String(a.match_date).localeCompare(String(b.match_date)));
   }, [matches]);
+  const hasLive = live.length > 0;
 
   const upcoming = useMemo(() => {
     return matches
@@ -85,20 +87,19 @@ export function LeaguePage() {
   }, [canSlide]);
 
   useEffect(() => {
-    if (!league?.competition_id) return;
-    syncMatches.mutate({ competitionId: String(league.competition_id), silent: true });
-  }, [league?.competition_id]);
+    syncPendingRef.current = syncMatches.isPending;
+  }, [syncMatches.isPending]);
 
   useEffect(() => {
     if (activeTab !== 'matches') return;
     if (!league?.competition_id) return;
 
     const competitionId = String(league.competition_id);
-    const intervalMs = live.length > 0 ? 60_000 : 300_000;
+    const intervalMs = hasLive ? 60_000 : 300_000;
 
     const tick = () => {
       if (document.visibilityState !== 'visible') return;
-      if (syncMatches.isPending) return;
+      if (syncPendingRef.current) return;
       syncMatches.mutate({ competitionId, silent: true });
     };
 
@@ -110,7 +111,7 @@ export function LeaguePage() {
       window.clearInterval(id);
       window.removeEventListener('focus', onFocus);
     };
-  }, [activeTab, league?.competition_id, live.length, syncMatches.isPending]);
+  }, [activeTab, league?.competition_id, hasLive]);
 
   useEffect(() => {
     if (activeTab !== 'matches') return;

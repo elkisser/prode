@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
@@ -55,6 +55,7 @@ export function useRealtimeLeagueMembers() {
 
 export function useRealtimeMatches() {
   const queryClient = useQueryClient();
+  const invalidateTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const channel = supabase
@@ -67,12 +68,22 @@ export function useRealtimeMatches() {
           table: 'matches',
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['matches'] });
+          if (invalidateTimeoutRef.current) {
+            window.clearTimeout(invalidateTimeoutRef.current);
+          }
+          invalidateTimeoutRef.current = window.setTimeout(() => {
+            invalidateTimeoutRef.current = null;
+            queryClient.invalidateQueries({ queryKey: ['matches'] });
+          }, 600);
         }
       )
       .subscribe();
 
     return () => {
+      if (invalidateTimeoutRef.current) {
+        window.clearTimeout(invalidateTimeoutRef.current);
+        invalidateTimeoutRef.current = null;
+      }
       supabase.removeChannel(channel);
     };
   }, [queryClient]);

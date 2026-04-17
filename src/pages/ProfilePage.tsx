@@ -57,11 +57,16 @@ export function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    if (isEditing) return;
     setUsername(profile?.username || '');
     setAvatarUrl(profile?.avatar_url || '');
-  }, [profile?.username, profile?.avatar_url]);
+  }, [isEditing, profile?.username, profile?.avatar_url]);
 
   const handleStartEditing = () => {
+    if (!profile) {
+      toast.error('Tu perfil todavía se está cargando');
+      return;
+    }
     setUsername(profile?.username || '');
     setAvatarUrl(profile?.avatar_url || '');
     setIsEditing(true);
@@ -268,7 +273,8 @@ export function ProfilePage() {
               ) : (
                 <button
                   onClick={handleStartEditing}
-                  className="flex-1 btn-primary py-4 rounded-2xl text-lg flex items-center justify-center gap-2"
+                  disabled={!profile}
+                  className="flex-1 btn-primary py-4 rounded-2xl text-lg flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Pencil className="w-5 h-5" /> Editar Perfil
                 </button>
