@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import type { League } from '@/types';
 import { useAuthStore } from '@/store/authStore';
-import { Trophy, Copy, Trash2, LogIn } from './Icons';
+import { Trophy, Copy, Trash2, LogIn, Share2 } from './Icons';
+import toast from 'react-hot-toast';
 
 interface LeagueCardProps {
   league: League;
@@ -12,6 +13,24 @@ interface LeagueCardProps {
 export function LeagueCard({ league, onLeave, onDelete }: LeagueCardProps) {
   const user = useAuthStore((state) => state.user);
   const isCreator = league.created_by === user?.id;
+  const inviteUrl = `${window.location.origin}/invite/${league.invite_code}`;
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(inviteUrl);
+    toast.success('Link copiado');
+  };
+
+  const handleShare = async () => {
+    const canShare = typeof (navigator as any)?.share === 'function';
+    if (!canShare) {
+      await handleCopy();
+      return;
+    }
+    await (navigator as any).share({
+      title: `Invitación a ${league.name}`,
+      url: inviteUrl,
+    });
+  };
 
   return (
     <div className="glass-card p-6 rounded-[2rem] hover:border-primary-500/30 transition-all duration-300 group relative overflow-hidden">
@@ -48,15 +67,24 @@ export function LeagueCard({ league, onLeave, onDelete }: LeagueCardProps) {
               <span className="text-[10px] text-dark-400 uppercase font-bold tracking-tighter">Código</span>
               <code className="text-lg font-black text-primary-400 tracking-widest">{league.invite_code}</code>
             </div>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(league.invite_code);
-              }}
-              className="p-2 hover:bg-dark-700 rounded-xl transition-colors text-dark-300 hover:text-white"
-              title="Copiar código"
-            >
-              <Copy className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handleShare().catch(() => null)}
+                className="p-2 hover:bg-dark-700 rounded-xl transition-colors text-dark-300 hover:text-white"
+                title="Compartir link"
+                aria-label="Compartir link"
+              >
+                <Share2 className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleCopy().catch(() => null)}
+                className="p-2 hover:bg-dark-700 rounded-xl transition-colors text-dark-300 hover:text-white"
+                title="Copiar link"
+                aria-label="Copiar link"
+              >
+                <Copy className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           <div className="flex gap-2">

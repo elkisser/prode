@@ -410,9 +410,19 @@ async function deleteMatchesByCompetitionId(competitionId: string) {
   }
 }
 
-function mapStatusToDb(intHomeScore: string | null): 'pending' | 'finished' {
-  if (intHomeScore !== null && intHomeScore !== '') return 'finished';
-  return 'pending';
+function mapTheSportsDbStatusToDb(
+  strStatus: string | null,
+  intHomeScore: string | null,
+  intAwayScore: string | null
+): 'pending' | 'finished' | 'in_progress' | 'cancelled' {
+  const s = (strStatus || '').toLowerCase();
+  if (s.includes('match finished') || s === 'ft' || s.includes('finished')) return 'finished';
+  if (s.includes('live') || s.includes('in play') || s.includes('1st half') || s.includes('2nd half') || s.includes('half time')) return 'in_progress';
+  if (s.includes('postpon') || s.includes('cancel') || s.includes('aband') || s.includes('suspend')) return 'cancelled';
+  if (s.includes('not started') || s === 'ns') return 'pending';
+
+  const hasScore = (intHomeScore !== null && intHomeScore !== '') || (intAwayScore !== null && intAwayScore !== '');
+  return hasScore ? 'finished' : 'pending';
 }
 
 (globalThis as any).Deno.serve(async (req: Request) => {
@@ -555,9 +565,10 @@ function mapStatusToDb(intHomeScore: string | null): 'pending' | 'finished' {
 
           home_score: e.intHomeScore ? Number(e.intHomeScore) : null,
           away_score: e.intAwayScore ? Number(e.intAwayScore) : null,
-          status: mapStatusToDb(e.intHomeScore),
+          status: mapTheSportsDbStatusToDb(e.strStatus, e.intHomeScore, e.intAwayScore),
           updated_at: new Date().toISOString(),
         }));
+        formatted = pickRelevantByDate(formatted, new Date(), false);
       }
 
       if (formatted.length === 0) continue;

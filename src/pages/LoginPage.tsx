@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
 
 export function LoginPage() {
+  const [searchParams] = useSearchParams();
+  const redirect = searchParams.get('redirect');
+  const redirectSuffix = redirect && redirect.startsWith('/') ? `?redirect=${encodeURIComponent(redirect)}` : '';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,10 +28,10 @@ export function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-dark-950 p-4 relative overflow-hidden">
       {/* Background Orbs */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-primary-600/10 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2"></div>
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-secondary-600/10 rounded-full blur-[100px] translate-x-1/2 translate-y-1/2"></div>
+      <div className="absolute top-0 left-0 w-96 h-96 bg-primary-600/10 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2 prode-float"></div>
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-secondary-600/10 rounded-full blur-[100px] translate-x-1/2 translate-y-1/2 prode-float"></div>
 
-      <div className="glass-card p-10 w-full max-w-md relative z-10 rounded-3xl border-white/5">
+      <div className="glass-card p-10 w-full max-w-md relative z-10 rounded-3xl border-white/5 prode-fade-up">
         <div className="text-center mb-10">
           <div className="text-6xl mb-4">⚽</div>
           <h1 className="text-5xl font-black bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent mb-2">
@@ -87,7 +90,7 @@ export function LoginPage() {
 
         <p className="text-center mt-8 text-dark-400 font-medium">
           ¿Aún no tienes equipo?{' '}
-          <Link to="/register" className="text-primary-400 font-bold hover:text-primary-300 transition-colors">
+          <Link to={`/register${redirectSuffix}`} className="text-primary-400 font-bold hover:text-primary-300 transition-colors">
             Ficha aquí
           </Link>
         </p>

@@ -57,7 +57,8 @@ export function useSyncMatches() {
         toast.error('No se encontraron partidos. Intenta más tarde.');
       }
     },
-    onError: () => {
+    onError: (_error, params?: { competitionId?: string; silent?: boolean }) => {
+      if (params?.silent) return;
       toast.error('Error al sincronizar partidos');
     },
   });
