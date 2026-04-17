@@ -16,6 +16,30 @@ export function InvitePage() {
   const { data: league, isLoading } = useQuery({
     queryKey: ['inviteLeague', normalizedCode],
     queryFn: async () => {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_league_by_invite_public', {
+        p_invite_code: normalizedCode,
+      });
+
+      const rpcMissing =
+        !!rpcError &&
+        (rpcError.code === 'PGRST202' ||
+          String(rpcError.message || '').toLowerCase().includes('get_league_by_invite_public'));
+
+      if (!rpcError) {
+        const rpcRow = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+        if (!rpcRow) return null;
+        return {
+          id: (rpcRow as any).id,
+          name: (rpcRow as any).name,
+          scoring_mode: (rpcRow as any).scoring_mode,
+          competition_name: (rpcRow as any).competition_name,
+          invite_code: (rpcRow as any).invite_code,
+          member_count: Number((rpcRow as any).member_count || 0),
+        };
+      }
+
+      if (!rpcMissing) throw rpcError;
+
       const { data, error } = await supabase
         .from(SUPABASE_TABLES.LEAGUES)
         .select('id, name, scoring_mode, competition_name, invite_code')
@@ -36,7 +60,7 @@ export function InvitePage() {
         .eq('league_id', league!.id);
       return count || 0;
     },
-    enabled: !!league?.id,
+    enabled: !!league?.id && typeof (league as any)?.member_count !== 'number',
   });
 
   const handleJoin = async () => {
@@ -169,7 +193,7 @@ export function InvitePage() {
               <div className="text-[10px] font-black uppercase tracking-widest text-dark-500">Miembros</div>
               <div className="text-sm font-black text-white mt-2 inline-flex items-center gap-2">
                 <Users className="w-4 h-4" />
-                {memberCount}
+                {typeof (league as any)?.member_count === 'number' ? (league as any).member_count : memberCount}
               </div>
             </div>
           </div>

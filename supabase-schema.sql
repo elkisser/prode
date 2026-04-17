@@ -116,6 +116,81 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Function to get league info from invite code (public-safe fields only)
+CREATE OR REPLACE FUNCTION public.get_league_by_invite_public(
+  p_invite_code TEXT
+)
+RETURNS TABLE (
+  id UUID,
+  name TEXT,
+  scoring_mode TEXT,
+  competition_name TEXT,
+  invite_code TEXT,
+  member_count BIGINT
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    l.id,
+    l.name,
+    l.scoring_mode,
+    l.competition_name,
+    l.invite_code,
+    COALESCE(COUNT(lm.id), 0)::BIGINT AS member_count
+  FROM public.leagues l
+  LEFT JOIN public.league_members lm ON lm.league_id = l.id
+  WHERE UPPER(l.invite_code) = UPPER(TRIM(p_invite_code))
+  GROUP BY l.id, l.name, l.scoring_mode, l.competition_name, l.invite_code
+  LIMIT 1;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Function to join a league by invite code without direct read access to leagues
+CREATE OR REPLACE FUNCTION public.join_league_by_invite(
+  p_invite_code TEXT
+)
+RETURNS TABLE (
+  league_id UUID,
+  already_member BOOLEAN
+) AS $$
+DECLARE
+  v_user_id UUID;
+  v_league_id UUID;
+  v_already_member BOOLEAN;
+BEGIN
+  v_user_id := auth.uid();
+
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  SELECT l.id
+  INTO v_league_id
+  FROM public.leagues l
+  WHERE UPPER(l.invite_code) = UPPER(TRIM(p_invite_code))
+  LIMIT 1;
+
+  IF v_league_id IS NULL THEN
+    RAISE EXCEPTION 'Código de liga inválido';
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.league_members lm
+    WHERE lm.league_id = v_league_id
+      AND lm.user_id = v_user_id
+  ) INTO v_already_member;
+
+  IF NOT v_already_member THEN
+    INSERT INTO public.league_members (league_id, user_id)
+    VALUES (v_league_id, v_user_id)
+    ON CONFLICT (league_id, user_id) DO NOTHING;
+  END IF;
+
+  RETURN QUERY SELECT v_league_id, v_already_member;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
 -- Enable Row Level Security
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.competitions ENABLE ROW LEVEL SECURITY;
@@ -156,6 +231,9 @@ CREATE POLICY "League members are viewable by members" ON public.league_members
   );
 CREATE POLICY "Users can join leagues" ON public.league_members
   FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+GRANT EXECUTE ON FUNCTION public.get_league_by_invite_public(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.join_league_by_invite(TEXT) TO authenticated;
 
 -- Predictions: readable by user, editable by owner
 CREATE POLICY "Users can view own predictions" ON public.predictions

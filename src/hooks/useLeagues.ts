@@ -94,11 +94,52 @@ export function useJoinLeague() {
   return useMutation({
     mutationFn: async ({ invite_code }: JoinLeagueInput) => {
       if (!user) throw new Error('Not authenticated');
+      const normalizedCode = invite_code.trim().toUpperCase();
+
+      const { data: rpcData, error: rpcError } = await supabase.rpc('join_league_by_invite', {
+        p_invite_code: normalizedCode,
+      });
+
+      const rpcMissing =
+        !!rpcError &&
+        (rpcError.code === 'PGRST202' ||
+          String(rpcError.message || '').toLowerCase().includes('join_league_by_invite'));
+
+      if (!rpcError) {
+        const rpcRow = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+        const leagueId = (rpcRow as any)?.league_id;
+
+        if (!leagueId) {
+          throw new Error('No se pudo obtener la liga para unirse');
+        }
+
+        const { data: league, error: leagueError } = await supabase
+          .from(SUPABASE_TABLES.LEAGUES)
+          .select('*')
+          .eq('id', leagueId)
+          .single();
+
+        if (leagueError) {
+          throw new Error('Te uniste a la liga, pero hubo un problema al cargarla');
+        }
+
+        try {
+          await syncLeagueEvents(league.competition_id);
+        } catch (syncError) {
+          console.warn('Sync after joining failed:', syncError);
+        }
+
+        return league;
+      }
+
+      if (!rpcMissing) {
+        throw rpcError;
+      }
 
       const { data: league } = await supabase
         .from(SUPABASE_TABLES.LEAGUES)
         .select('*')
-        .eq('invite_code', invite_code.toUpperCase())
+        .eq('invite_code', normalizedCode)
         .single();
 
       if (!league) throw new Error('Código de liga inválido');
