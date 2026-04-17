@@ -21,7 +21,7 @@ export function RegisterPage() {
     }
     setLoading(true);
     try {
-      await signUp(email, password, username);
+      await signUp(email, password, username, redirect || undefined);
       toast.success('Cuenta creada. Revisá tu email para confirmar y volver a la app.');
     } catch (error) {
       toast.error('Error al crear la cuenta');

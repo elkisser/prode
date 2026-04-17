@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
+import { LogOut } from '@/components/Icons';
 import toast from 'react-hot-toast';
 
 export function ProfilePage() {
@@ -66,7 +67,10 @@ export function ProfilePage() {
             </div>
 
             {isEditing ? (
-              <div className="w-full max-w-xs animate-in fade-in slide-in-from-top-2">
+              <div className="w-full max-w-md animate-in fade-in slide-in-from-top-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-dark-500 mb-2 px-2">
+                  Nombre de Usuario
+                </label>
                 <input
                   type="text"
                   value={username}
@@ -75,16 +79,17 @@ export function ProfilePage() {
                   placeholder="Tu nombre"
                   autoFocus
                 />
+                <p className="text-center text-xs text-dark-400 mt-3">Mínimo 3 caracteres</p>
               </div>
             ) : (
-              <h2 className="text-4xl font-black text-white tracking-tight">{profile?.username}</h2>
+              <h2 className="text-4xl font-black text-white tracking-tight text-center">{profile?.username}</h2>
             )}
             <p className="text-dark-500 font-bold uppercase tracking-widest text-[10px] mt-2">Perfil de Jugador</p>
           </div>
 
           <div className="space-y-8 relative z-10">
             <div className="grid grid-cols-1 gap-6">
-              <div className="p-6 bg-dark-800/30 rounded-3xl border border-white/5">
+              <div className="p-6 bg-dark-800/40 rounded-3xl border border-white/10">
                 <label className="block text-[10px] font-black uppercase tracking-widest text-dark-500 mb-2 px-1">
                   ID de Usuario (Email)
                 </label>
@@ -93,7 +98,7 @@ export function ProfilePage() {
                 </div>
               </div>
 
-              <div className="p-6 bg-dark-800/30 rounded-3xl border border-white/5">
+              <div className="p-6 bg-dark-800/40 rounded-3xl border border-white/10">
                 <label className="block text-[10px] font-black uppercase tracking-widest text-dark-500 mb-2 px-1">
                   Nombre de Usuario
                 </label>
@@ -107,12 +112,12 @@ export function ProfilePage() {
               </div>
             </div>
 
-            <div className="pt-6 flex gap-4">
+            <div className="pt-2 flex flex-col sm:flex-row gap-4">
               {isEditing ? (
                 <>
                   <button
                     onClick={() => setIsEditing(false)}
-                    className="flex-1 px-6 py-4 bg-dark-800 hover:bg-dark-700 text-white rounded-2xl transition-all font-bold border border-white/5"
+                    className="flex-1 px-6 py-4 bg-dark-800 hover:bg-dark-700 text-white rounded-2xl transition-all font-bold border border-white/10"
                   >
                     Cancelar
                   </button>
@@ -139,9 +144,9 @@ export function ProfilePage() {
         <div className="mt-8 flex justify-center">
           <button
             onClick={handleSignOut}
-            className="group flex items-center gap-2 px-8 py-4 text-red-400/60 hover:text-red-400 transition-all font-black uppercase text-xs tracking-[0.2em]"
+            className="group w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-4 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/50 rounded-2xl text-red-300 hover:text-red-200 transition-all font-black uppercase text-xs tracking-[0.2em] shadow-lg shadow-red-900/20"
           >
-            <span className="group-hover:scale-125 transition-transform">🚪</span>
+            <LogOut className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
             Cerrar Sesión
           </button>
         </div>

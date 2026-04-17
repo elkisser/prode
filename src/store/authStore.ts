@@ -8,7 +8,7 @@ interface AuthState {
   profile: Profile | null;
   loading: boolean;
   initialize: () => Promise<void>;
-  signUp: (email: string, password: string, username: string) => Promise<void>;
+  signUp: (email: string, password: string, username: string, redirectTo?: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
@@ -47,12 +47,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ profile: data });
   },
 
-  signUp: async (email, password, username) => {
+  signUp: async (email, password, username, redirectTo) => {
+    const safeRedirect = redirectTo && redirectTo.startsWith('/') ? redirectTo : '/dashboard';
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/login`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(safeRedirect)}`,
         data: {
           username,
         },

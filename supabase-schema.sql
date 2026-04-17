@@ -155,8 +155,8 @@ RETURNS TABLE (
 ) AS $$
 DECLARE
   v_user_id UUID;
-  v_league_id UUID;
-  v_already_member BOOLEAN;
+  v_target_league_id UUID;
+  v_was_member BOOLEAN;
 BEGIN
   v_user_id := auth.uid();
 
@@ -165,29 +165,32 @@ BEGIN
   END IF;
 
   SELECT l.id
-  INTO v_league_id
-  FROM public.leagues l
+  INTO v_target_league_id
+  FROM public.leagues AS l
   WHERE UPPER(l.invite_code) = UPPER(TRIM(p_invite_code))
   LIMIT 1;
 
-  IF v_league_id IS NULL THEN
+  IF v_target_league_id IS NULL THEN
     RAISE EXCEPTION 'Código de liga inválido';
   END IF;
 
   SELECT EXISTS (
     SELECT 1
-    FROM public.league_members lm
-    WHERE lm.league_id = v_league_id
+    FROM public.league_members AS lm
+    WHERE lm.league_id = v_target_league_id
       AND lm.user_id = v_user_id
-  ) INTO v_already_member;
+  )
+  INTO v_was_member;
 
-  IF NOT v_already_member THEN
+  IF NOT v_was_member THEN
     INSERT INTO public.league_members (league_id, user_id)
-    VALUES (v_league_id, v_user_id)
+    VALUES (v_target_league_id, v_user_id)
     ON CONFLICT (league_id, user_id) DO NOTHING;
   END IF;
 
-  RETURN QUERY SELECT v_league_id, v_already_member;
+  league_id := v_target_league_id;
+  already_member := v_was_member;
+  RETURN NEXT;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
