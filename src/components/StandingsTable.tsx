@@ -1,5 +1,6 @@
 import type { LeagueStanding } from '@/types';
 import { useAuthStore } from '@/store/authStore';
+import { resolveAvatarUrl } from '@/lib/avatar';
 
 interface StandingsTableProps {
   standings: LeagueStanding[];
@@ -66,17 +67,11 @@ export function StandingsTable({ standings, isLoading }: StandingsTableProps) {
             </div>
             <div className="md:col-span-7 flex items-center gap-3 md:gap-4 min-w-0 flex-1">
               <div className="relative">
-                {standing.avatar_url ? (
-                  <img
-                    src={standing.avatar_url}
-                    alt=""
-                    className="w-10 h-10 md:w-12 md:h-12 rounded-2xl object-cover border-2 border-white/10"
-                  />
-                ) : (
-                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-gradient-to-tr from-dark-800 to-dark-700 flex items-center justify-center text-lg md:text-xl font-black text-white border border-white/5">
-                    {standing.username.charAt(0).toUpperCase()}
-                  </div>
-                )}
+                <img
+                  src={resolveAvatarUrl(standing.avatar_url, standing.user_id || standing.username, 96)}
+                  alt=""
+                  className="w-10 h-10 md:w-12 md:h-12 rounded-2xl object-cover border-2 border-white/10"
+                />
                 {standing.position === 1 && (
                   <div className="absolute -top-2 -right-2 text-lg">👑</div>
                 )}

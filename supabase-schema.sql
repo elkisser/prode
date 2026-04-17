@@ -183,14 +183,17 @@ BEGIN
   INTO v_was_member;
 
   IF NOT v_was_member THEN
-    INSERT INTO public.league_members (league_id, user_id)
-    VALUES (v_target_league_id, v_user_id)
-    ON CONFLICT (league_id, user_id) DO NOTHING;
+    EXECUTE
+      'INSERT INTO public.league_members (league_id, user_id)
+       VALUES ($1, $2)
+       ON CONFLICT (league_id, user_id) DO NOTHING'
+    USING v_target_league_id, v_user_id;
   END IF;
 
-  league_id := v_target_league_id;
-  already_member := v_was_member;
-  RETURN NEXT;
+  RETURN QUERY
+  SELECT
+    v_target_league_id AS league_id,
+    v_was_member AS already_member;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 

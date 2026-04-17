@@ -6,6 +6,7 @@ import { CreateLeagueModal, JoinLeagueModal } from '@/components/Modals';
 import { useAuthStore } from '@/store/authStore';
 import { Trophy, RefreshCw, LogOut, SoccerBall } from '@/components/Icons';
 import { useSyncMatches } from '@/hooks/useMatches';
+import { resolveAvatarUrl } from '@/lib/avatar';
 import toast from 'react-hot-toast';
 import type { CreateLeagueInput } from '@/types';
 
@@ -103,9 +104,11 @@ export function DashboardPage() {
             </div>
             <div className="flex items-center justify-end">
               <Link to="/profile" className="flex items-center gap-2 group">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary-600 to-secondary-600 flex items-center justify-center font-bold text-white shadow-lg group-hover:scale-110 transition-transform">
-                  {user?.username?.charAt(0).toUpperCase()}
-                </div>
+                <img
+                  src={resolveAvatarUrl(user?.avatar_url, user?.id || user?.username || 'prode', 80)}
+                  alt=""
+                  className="w-10 h-10 rounded-full object-cover border border-white/10 shadow-lg group-hover:scale-110 transition-transform"
+                />
               </Link>
             </div>
           </div>
