@@ -17,6 +17,8 @@ export function useRealtimePredictions() {
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ['predictions'] });
+          queryClient.invalidateQueries({ queryKey: ['prediction'] });
+          queryClient.invalidateQueries({ queryKey: ['leagueStandings'] });
         }
       )
       .subscribe();

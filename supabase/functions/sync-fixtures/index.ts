@@ -389,6 +389,122 @@ async function upsertMatches(matches: any[]) {
   }
 }
 
+function calculatePredictionPoints(
+  predictedHome: number,
+  predictedAway: number,
+  actualHome: number | null,
+  actualAway: number | null
+): number {
+  if (actualHome === null || actualAway === null) return 0;
+  const isExact = predictedHome === actualHome && predictedAway === actualAway;
+  if (isExact) return 5;
+  const actualWins = actualHome > actualAway;
+  const predictedWins = predictedHome > predictedAway;
+  const isDraw = actualHome === actualAway;
+  const predictedDraw = predictedHome === predictedAway;
+  if ((isDraw && predictedDraw) || actualWins === predictedWins) return 3;
+  return 0;
+}
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+async function updatePredictionsForFinishedMatchesByApiFixtureIds(apiFixtureIds: string[]) {
+  const supabaseUrl = (globalThis as any).Deno?.env?.get('SUPABASE_URL')!;
+  const supabaseKey = (globalThis as any).Deno?.env?.get('SERVICE_ROLE_KEY')!;
+
+  const uniq = Array.from(new Set((apiFixtureIds || []).filter(Boolean).map(String)));
+  if (uniq.length === 0) return;
+
+  const headers = {
+    apikey: supabaseKey,
+    Authorization: `Bearer ${supabaseKey}`,
+  };
+
+  const idChunks = chunkArray(uniq, 60);
+  for (const ids of idChunks) {
+    const quoted = ids.map((id) => `"${String(id).replace(/"/g, '\\"')}"`).join(',');
+    const matchParams = new URLSearchParams();
+    matchParams.set('select', 'id,api_fixture_id,home_score,away_score,status');
+    matchParams.set('api_fixture_id', `in.(${quoted})`);
+
+    const matchRes = await fetch(`${supabaseUrl}/rest/v1/matches?${matchParams.toString()}`, {
+      headers,
+    });
+    if (!matchRes.ok) continue;
+
+    const matchRows = (await matchRes.json().catch(() => [])) as any[];
+    const finished = (matchRows || []).filter(
+      (m) =>
+        (m?.status === 'finished' || (typeof m?.status === 'string' && m.status.toLowerCase() === 'finished')) &&
+        typeof m?.id === 'number' &&
+        typeof m?.home_score === 'number' &&
+        typeof m?.away_score === 'number'
+    );
+
+    if (finished.length === 0) continue;
+
+    const matchById = new Map<number, { home_score: number; away_score: number }>();
+    for (const m of finished) {
+      matchById.set(m.id, { home_score: m.home_score, away_score: m.away_score });
+    }
+
+    const matchIds = Array.from(matchById.keys());
+    const matchIdChunks = chunkArray(matchIds, 180);
+    for (const matchIdChunk of matchIdChunks) {
+      const predParams = new URLSearchParams();
+      predParams.set('select', '*');
+      predParams.set('match_id', `in.(${matchIdChunk.join(',')})`);
+
+      const predRes = await fetch(`${supabaseUrl}/rest/v1/predictions?${predParams.toString()}`, {
+        headers,
+      });
+      if (!predRes.ok) continue;
+
+      const predictions = (await predRes.json().catch(() => [])) as any[];
+      for (const p of predictions || []) {
+        if (!p?.id || typeof p?.match_id !== 'number') continue;
+        const actual = matchById.get(p.match_id);
+        if (!actual) continue;
+
+        const predictedHome =
+          typeof p.home_score === 'number'
+            ? p.home_score
+            : typeof p.predicted_home === 'number'
+              ? p.predicted_home
+              : Number(p.predicted_home);
+        const predictedAway =
+          typeof p.away_score === 'number'
+            ? p.away_score
+            : typeof p.predicted_away === 'number'
+              ? p.predicted_away
+              : Number(p.predicted_away);
+
+        if (!Number.isFinite(predictedHome) || !Number.isFinite(predictedAway)) continue;
+
+        const points = calculatePredictionPoints(predictedHome, predictedAway, actual.home_score, actual.away_score);
+        if (typeof p.points === 'number' && p.points === points) continue;
+
+        const updParams = new URLSearchParams();
+        updParams.set('id', `eq.${p.id}`);
+        const updRes = await fetch(`${supabaseUrl}/rest/v1/predictions?${updParams.toString()}`, {
+          method: 'PATCH',
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify({ points }),
+        });
+        if (!updRes.ok) continue;
+      }
+    }
+  }
+}
+
 async function deleteMatchesByCompetitionId(competitionId: string) {
   const supabaseUrl = (globalThis as any).Deno?.env?.get('SUPABASE_URL')!;
   const supabaseKey = (globalThis as any).Deno?.env?.get('SERVICE_ROLE_KEY')!;
@@ -574,6 +690,7 @@ function mapTheSportsDbStatusToDb(
       if (formatted.length === 0) continue;
 
       await upsertMatches(formatted);
+      await updatePredictionsForFinishedMatchesByApiFixtureIds(formatted.map((m) => m.api_fixture_id)).catch(() => null);
       total += formatted.length;
     }
 

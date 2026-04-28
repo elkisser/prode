@@ -161,6 +161,22 @@ export function MatchCard({ match, showPrediction = true, scoringMode = 'exact' 
                 <span className="text-dark-600 font-black text-2xl">:</span>
                 <span className="text-3xl md:text-4xl font-black text-white">{match.away_score ?? '—'}</span>
               </div>
+              {match.status === 'finished' && showPrediction && prediction ? (
+                <div className="mt-3 pt-3 border-t border-white/5">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-primary-500/60">
+                    Tu Predicción
+                  </div>
+                  {scoringMode === 'simple' ? (
+                    <div className="text-sm font-black text-primary-200 mt-1">
+                      {getWinnerLabel(getWinnerFromScores(prediction.home_score, prediction.away_score), match)}
+                    </div>
+                  ) : (
+                    <div className="text-sm font-black text-primary-200 mt-1">
+                      {prediction.home_score} - {prediction.away_score}
+                    </div>
+                  )}
+                </div>
+              ) : null}
               {match.status === 'in_progress' && prediction ? (
                 <div className="text-[10px] font-black uppercase tracking-widest text-dark-500 mt-2">
                   Pronóstico bloqueado

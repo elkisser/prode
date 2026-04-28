@@ -112,6 +112,8 @@ export function useCreatePrediction() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['predictions'] });
+      queryClient.invalidateQueries({ queryKey: ['prediction'] });
+      queryClient.invalidateQueries({ queryKey: ['leagueStandings'] });
       toast.success('Predicción guardada');
     },
   });
