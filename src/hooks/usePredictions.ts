@@ -33,6 +33,32 @@ export function usePredictions(matchId?: string) {
   });
 }
 
+export function useMyPredictionsLite() {
+  const user = useAuthStore((state) => state.user);
+
+  return useQuery({
+    queryKey: ['myPredictionsLite', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+
+      const { data, error } = await supabase
+        .from(SUPABASE_TABLES.PREDICTIONS)
+        .select('id,user_id,match_id,home_score,away_score,predicted_home,predicted_away,points,created_at')
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      const rows = (data || []) as any[];
+      return rows.map((p) => ({
+        ...p,
+        home_score: typeof p.home_score === 'number' ? p.home_score : p.predicted_home,
+        away_score: typeof p.away_score === 'number' ? p.away_score : p.predicted_away,
+      })) as Prediction[];
+    },
+    enabled: !!user,
+  });
+}
+
 export function useCreatePrediction() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
@@ -113,13 +139,14 @@ export function useCreatePrediction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['predictions'] });
       queryClient.invalidateQueries({ queryKey: ['prediction'] });
+      queryClient.invalidateQueries({ queryKey: ['myPredictionsLite'] });
       queryClient.invalidateQueries({ queryKey: ['leagueStandings'] });
       toast.success('Predicción guardada');
     },
   });
 }
 
-export function useMatchPrediction(matchId: number) {
+export function useMatchPrediction(matchId: number, options?: { enabled?: boolean }) {
   const user = useAuthStore((state) => state.user);
 
   return useQuery({
@@ -142,6 +169,6 @@ export function useMatchPrediction(matchId: number) {
         away_score: typeof p.away_score === 'number' ? p.away_score : p.predicted_away,
       } as Prediction;
     },
-    enabled: !!user && !!matchId,
+    enabled: (options?.enabled ?? true) && !!user && !!matchId,
   });
 }

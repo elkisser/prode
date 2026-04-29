@@ -8,6 +8,7 @@ import { StandingsTable } from '@/components/StandingsTable';
 import { ChevronLeft, Share2 } from '@/components/Icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import { useMyPredictionsLite } from '@/hooks/usePredictions';
 
 export function LeaguePage() {
   const { leagueId } = useParams<{ leagueId: string }>();
@@ -35,6 +36,15 @@ export function LeaguePage() {
   const { data: matches = [], isLoading: matchesLoading, error: matchesError } = useMatches(
     league?.competition_id ? String(league.competition_id) : undefined
   );
+  const { data: myPredictions = [] } = useMyPredictionsLite();
+
+  const predictionByMatchId = useMemo(() => {
+    const map = new Map<number, (typeof myPredictions)[number]>();
+    for (const p of myPredictions) {
+      if (typeof p.match_id === 'number') map.set(p.match_id, p);
+    }
+    return map;
+  }, [myPredictions]);
 
   const scoringMode = (league?.scoring_mode as 'simple' | 'exact') || 'exact';
 
@@ -371,7 +381,12 @@ export function LeaguePage() {
                         </div>
                       </div>
                       {live.map((match) => (
-                        <MatchCard key={match.id} match={match} scoringMode={scoringMode} showPrediction={false} />
+                        <MatchCard
+                          key={match.id}
+                          match={match}
+                          scoringMode={scoringMode}
+                          predictionOverride={predictionByMatchId.get(match.id) ?? null}
+                        />
                       ))}
                     </section>
                   ) : null}
@@ -447,68 +462,97 @@ export function LeaguePage() {
                           {finishedPages.map((page, idx) => (
                             <div key={idx} className="w-full shrink-0">
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {page.map((m) => (
-                                  <div
-                                    key={m.id}
-                                    className="glass-card rounded-[2.25rem] p-5 border-white/5 overflow-hidden relative"
-                                  >
-                                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary-500/40 to-secondary-500/40" />
-                                    <div className="flex items-center justify-between mb-4 pt-1">
-                                      <span
-                                        className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg border ${
-                                          m.status === 'cancelled'
-                                            ? 'bg-dark-800/40 text-dark-300 border-white/5'
-                                            : 'bg-primary-500/10 text-primary-300 border-primary-500/20'
-                                        }`}
-                                      >
-                                        {m.status === 'cancelled' ? 'Cancelado' : 'Finalizado'}
-                                      </span>
-                                      <time className="text-[10px] text-dark-500 font-bold" dateTime={String(m.match_date)}>
-                                        {String(m.match_date).slice(0, 10)}
-                                      </time>
-                                    </div>
-                                    <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
-                                      <div className="flex items-center gap-2 min-w-0">
-                                        {m.home_logo ? (
-                                          <img
-                                            src={String(m.home_logo).trim().replace(/`/g, '')}
-                                            alt=""
-                                            className="w-10 h-10 object-contain"
-                                          />
-                                        ) : null}
-                                        <span className="sr-only">{m.home_team}</span>
-                                      </div>
+                                {page.map((m) => {
+                                  const p = predictionByMatchId.get(m.id) ?? null;
+                                  const predictionText = p
+                                    ? scoringMode === 'simple'
+                                      ? p.home_score === p.away_score
+                                        ? 'Empate'
+                                        : p.home_score > p.away_score
+                                          ? `Gana ${m.home_team}`
+                                          : `Gana ${m.away_team}`
+                                      : `${p.home_score} - ${p.away_score}`
+                                    : null;
 
-                                      <div className="flex justify-center">
-                                        <div className="px-4 py-3 rounded-2xl bg-dark-900/40 border border-white/5 text-center min-w-[92px]">
-                                          <div className="text-[10px] font-black uppercase tracking-widest text-dark-600">
-                                            Resultado
+                                  return (
+                                    <div
+                                      key={m.id}
+                                      className="glass-card rounded-[2.25rem] p-5 border-white/5 overflow-hidden relative"
+                                    >
+                                      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary-500/40 to-secondary-500/40" />
+                                      <div className="flex items-center justify-between mb-4 pt-1">
+                                        <span
+                                          className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg border ${
+                                            m.status === 'cancelled'
+                                              ? 'bg-dark-800/40 text-dark-300 border-white/5'
+                                              : 'bg-primary-500/10 text-primary-300 border-primary-500/20'
+                                          }`}
+                                        >
+                                          {m.status === 'cancelled' ? 'Cancelado' : 'Finalizado'}
+                                        </span>
+                                        <time className="text-[10px] text-dark-500 font-bold" dateTime={String(m.match_date)}>
+                                          {String(m.match_date).slice(0, 10)}
+                                        </time>
+                                      </div>
+                                      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          {m.home_logo ? (
+                                            <img
+                                              src={String(m.home_logo).trim().replace(/`/g, '')}
+                                              alt=""
+                                              className="w-10 h-10 object-contain"
+                                            />
+                                          ) : null}
+                                          <span className="sr-only">{m.home_team}</span>
+                                        </div>
+
+                                        <div className="flex justify-center">
+                                          <div className="px-4 py-3 rounded-2xl bg-dark-900/40 border border-white/5 text-center min-w-[92px]">
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-dark-600">
+                                              Resultado
+                                            </div>
+                                            <div className="mt-1 flex items-center justify-center gap-2">
+                                              <span className="text-3xl font-black text-white">
+                                                {m.home_score ?? '—'}
+                                              </span>
+                                              <span className="text-dark-600 font-black text-2xl">:</span>
+                                              <span className="text-3xl font-black text-white">
+                                                {m.away_score ?? '—'}
+                                              </span>
+                                            </div>
                                           </div>
-                                          <div className="mt-1 flex items-center justify-center gap-2">
-                                            <span className="text-3xl font-black text-white">
-                                              {m.home_score ?? '—'}
-                                            </span>
-                                            <span className="text-dark-600 font-black text-2xl">:</span>
-                                            <span className="text-3xl font-black text-white">
-                                              {m.away_score ?? '—'}
-                                            </span>
-                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 min-w-0 justify-end">
+                                          {m.away_logo ? (
+                                            <img
+                                              src={String(m.away_logo).trim().replace(/`/g, '')}
+                                              alt=""
+                                              className="w-10 h-10 object-contain"
+                                            />
+                                          ) : null}
+                                          <span className="sr-only">{m.away_team}</span>
                                         </div>
                                       </div>
 
-                                      <div className="flex items-center gap-2 min-w-0 justify-end">
-                                        {m.away_logo ? (
-                                          <img
-                                            src={String(m.away_logo).trim().replace(/`/g, '')}
-                                            alt=""
-                                            className="w-10 h-10 object-contain"
-                                          />
+                                      <div className="mt-4 pt-4 border-t border-white/5 text-center">
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-primary-500/60">
+                                          {p ? 'Tu Predicción' : 'Sin predicción'}
+                                        </div>
+                                        {p ? (
+                                          <>
+                                            <div className="text-sm font-black text-primary-200 mt-1">
+                                              {predictionText}
+                                            </div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest mt-2 text-dark-500">
+                                              {p.points} PTS
+                                            </div>
+                                          </>
                                         ) : null}
-                                        <span className="sr-only">{m.away_team}</span>
                                       </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           ))}
@@ -535,7 +579,14 @@ export function LeaguePage() {
                         </p>
                       </div>
                     ) : (
-                      upcoming.map((match) => <MatchCard key={match.id} match={match} scoringMode={scoringMode} />)
+                      upcoming.map((match) => (
+                        <MatchCard
+                          key={match.id}
+                          match={match}
+                          scoringMode={scoringMode}
+                          predictionOverride={predictionByMatchId.get(match.id) ?? null}
+                        />
+                      ))
                     )}
                   </section>
                 </>

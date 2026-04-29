@@ -357,9 +357,17 @@ async function fetchWithFallback(leagueId: string): Promise<TheSportsDBEvent[]> 
   return events ?? [];
 }
 
+function getSupabaseAdminConfig() {
+  const supabaseUrl = (globalThis as any).Deno?.env?.get('SUPABASE_URL') || '';
+  const supabaseKey = (globalThis as any).Deno?.env?.get('SERVICE_ROLE_KEY') || '';
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Faltan variables de entorno en la Edge Function: SUPABASE_URL y/o SERVICE_ROLE_KEY.');
+  }
+  return { supabaseUrl, supabaseKey };
+}
+
 async function upsertMatches(matches: any[]) {
-  const supabaseUrl = (globalThis as any).Deno?.env?.get('SUPABASE_URL')!;
-  const supabaseKey = (globalThis as any).Deno?.env?.get('SERVICE_ROLE_KEY')!;
+  const { supabaseUrl, supabaseKey } = getSupabaseAdminConfig();
 
   const res = await fetch(`${supabaseUrl}/rest/v1/matches?on_conflict=api_fixture_id`, {
     method: 'POST',
@@ -413,8 +421,7 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
 }
 
 async function updatePredictionsForFinishedMatchesByApiFixtureIds(apiFixtureIds: string[]) {
-  const supabaseUrl = (globalThis as any).Deno?.env?.get('SUPABASE_URL')!;
-  const supabaseKey = (globalThis as any).Deno?.env?.get('SERVICE_ROLE_KEY')!;
+  const { supabaseUrl, supabaseKey } = getSupabaseAdminConfig();
 
   const uniq = Array.from(new Set((apiFixtureIds || []).filter(Boolean).map(String)));
   if (uniq.length === 0) return;
@@ -506,8 +513,7 @@ async function updatePredictionsForFinishedMatchesByApiFixtureIds(apiFixtureIds:
 }
 
 async function deleteMatchesByCompetitionId(competitionId: string) {
-  const supabaseUrl = (globalThis as any).Deno?.env?.get('SUPABASE_URL')!;
-  const supabaseKey = (globalThis as any).Deno?.env?.get('SERVICE_ROLE_KEY')!;
+  const { supabaseUrl, supabaseKey } = getSupabaseAdminConfig();
 
   const res = await fetch(
     `${supabaseUrl}/rest/v1/matches?competition_id=eq.${encodeURIComponent(competitionId)}`,

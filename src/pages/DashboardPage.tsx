@@ -30,7 +30,8 @@ export function DashboardPage() {
     try {
       await syncMatches.mutateAsync({});
     } catch (error) {
-      toast.error('Error al sincronizar');
+      const message = error instanceof Error ? error.message : null;
+      toast.error(message ? `Error al sincronizar: ${message}` : 'Error al sincronizar');
     } finally {
       setSyncing(false);
     }

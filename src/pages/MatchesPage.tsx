@@ -1,25 +1,41 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMatches, useSyncMatches } from '@/hooks/useMatches';
 import { MatchCard } from '@/components/MatchCard';
 import { SoccerBall, RefreshCw } from '@/components/Icons';
+import { useMyPredictionsLite } from '@/hooks/usePredictions';
 
 export function MatchesPage() {
   const { data: matches = [], isLoading, error } = useMatches();
   const syncMatches = useSyncMatches();
   const [syncing, setSyncing] = useState(false);
+  const [onlyMyPredictions, setOnlyMyPredictions] = useState(true);
+  const { data: myPredictions = [] } = useMyPredictionsLite();
+
+  const predictionByMatchId = useMemo(() => {
+    const map = new Map<number, (typeof myPredictions)[number]>();
+    for (const p of myPredictions) {
+      if (typeof p.match_id === 'number') map.set(p.match_id, p);
+    }
+    return map;
+  }, [myPredictions]);
 
   const handleSync = async () => {
     setSyncing(true);
     try {
       await syncMatches.mutateAsync({});
+    } catch {
     } finally {
       setSyncing(false);
     }
   };
 
-  const pendingMatches = matches.filter((m) => m.status === 'pending');
-  const finishedMatches = matches.filter((m) => m.status === 'finished');
+  const filteredMatches = onlyMyPredictions
+    ? matches.filter((m) => predictionByMatchId.has(m.id))
+    : matches;
+
+  const pendingMatches = filteredMatches.filter((m) => m.status === 'pending');
+  const finishedMatches = filteredMatches.filter((m) => m.status === 'finished');
 
   return (
     <div className="min-h-screen bg-dark-950 text-dark-50">
@@ -32,14 +48,27 @@ export function MatchesPage() {
             </Link>
             <h1 className="text-2xl font-black text-white ml-4">Partidos</h1>
           </div>
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="btn-primary px-6 py-3 rounded-xl flex items-center gap-3"
-          >
-            <RefreshCw className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`} />
-            <span>{syncing ? 'Sincronizando...' : 'Sincronizar'}</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setOnlyMyPredictions((v) => !v)}
+              className={`px-4 py-3 rounded-xl font-black uppercase tracking-widest text-xs border transition-colors ${
+                onlyMyPredictions
+                  ? 'bg-primary-500/10 text-primary-300 border-primary-500/20'
+                  : 'bg-dark-800/60 text-dark-300 border-white/5 hover:bg-dark-700/70'
+              }`}
+            >
+              {onlyMyPredictions ? 'Mis predicciones' : 'Todos'}
+            </button>
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="btn-primary px-6 py-3 rounded-xl flex items-center gap-3"
+            >
+              <RefreshCw className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`} />
+              <span>{syncing ? 'Sincronizando...' : 'Sincronizar'}</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -85,6 +114,20 @@ export function MatchesPage() {
               Sincronizar Partidos
             </button>
           </div>
+        ) : filteredMatches.length === 0 ? (
+          <div className="glass-card p-20 text-center rounded-[3rem] border-white/5">
+            <h3 className="text-3xl font-black text-white mb-4">Todavía no hiciste predicciones</h3>
+            <p className="text-dark-400 mb-10 text-lg max-w-md mx-auto">
+              Cambiá a “Todos” para ver los partidos disponibles y hacer tu primera predicción.
+            </p>
+            <button
+              type="button"
+              onClick={() => setOnlyMyPredictions(false)}
+              className="btn-primary px-10 py-4 rounded-2xl text-lg inline-flex items-center gap-3"
+            >
+              Ver todos los partidos
+            </button>
+          </div>
         ) : (
           <div className="space-y-12">
             {pendingMatches.length > 0 && (
@@ -97,7 +140,11 @@ export function MatchesPage() {
                 </div>
                 <div className="grid grid-cols-1 gap-6">
                   {pendingMatches.map((match) => (
-                    <MatchCard key={match.id} match={match} />
+                    <MatchCard
+                      key={match.id}
+                      match={match}
+                      predictionOverride={predictionByMatchId.get(match.id) ?? null}
+                    />
                   ))}
                 </div>
               </section>
@@ -113,7 +160,11 @@ export function MatchesPage() {
                 </div>
                 <div className="grid grid-cols-1 gap-6">
                   {finishedMatches.map((match) => (
-                    <MatchCard key={match.id} match={match} showPrediction={false} />
+                    <MatchCard
+                      key={match.id}
+                      match={match}
+                      predictionOverride={predictionByMatchId.get(match.id) ?? null}
+                    />
                   ))}
                 </div>
               </section>

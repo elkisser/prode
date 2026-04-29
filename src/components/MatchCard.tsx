@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Match } from '@/types';
+import type { Match, Prediction } from '@/types';
 import { useMatchPrediction, useCreatePrediction } from '@/hooks/usePredictions';
 import { formatDateTime } from '@/lib/utils';
 import toast from 'react-hot-toast';
@@ -8,6 +8,7 @@ interface MatchCardProps {
   match: Match;
   showPrediction?: boolean;
   scoringMode?: 'simple' | 'exact';
+  predictionOverride?: Prediction | null;
 }
 
 function getWinnerFromScores(home: number, away: number): 'home' | 'draw' | 'away' {
@@ -26,8 +27,10 @@ function cleanUrl(url?: string | null) {
   return String(url).trim().replace(/`/g, '').trim();
 }
 
-export function MatchCard({ match, showPrediction = true, scoringMode = 'exact' }: MatchCardProps) {
-  const { data: prediction } = useMatchPrediction(match.id);
+export function MatchCard({ match, showPrediction = true, scoringMode = 'exact', predictionOverride }: MatchCardProps) {
+  const shouldFetchPrediction = typeof predictionOverride === 'undefined';
+  const { data: fetchedPrediction } = useMatchPrediction(match.id, { enabled: shouldFetchPrediction });
+  const prediction = shouldFetchPrediction ? (fetchedPrediction ?? null) : (predictionOverride ?? null);
   const createPrediction = useCreatePrediction();
   const [homeScore, setHomeScore] = useState('');
   const [awayScore, setAwayScore] = useState('');
@@ -161,7 +164,7 @@ export function MatchCard({ match, showPrediction = true, scoringMode = 'exact' 
                 <span className="text-dark-600 font-black text-2xl">:</span>
                 <span className="text-3xl md:text-4xl font-black text-white">{match.away_score ?? '—'}</span>
               </div>
-              {match.status === 'finished' && showPrediction && prediction ? (
+              {(match.status === 'finished' || match.status === 'in_progress') && showPrediction && prediction ? (
                 <div className="mt-3 pt-3 border-t border-white/5">
                   <div className="text-[10px] font-black uppercase tracking-widest text-primary-500/60">
                     Tu Predicción
@@ -301,7 +304,7 @@ export function MatchCard({ match, showPrediction = true, scoringMode = 'exact' 
         </div>
       )}
 
-      {match.status === 'finished' && prediction && (
+      {showPrediction && match.status === 'finished' && prediction && (
         <div className="mt-6 flex justify-center">
           <div className={`px-6 py-2 rounded-2xl border flex items-center gap-3 ${
             prediction.points > 0 

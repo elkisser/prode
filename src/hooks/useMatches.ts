@@ -64,7 +64,13 @@ export function useSyncMatches() {
     },
     onError: (_error, params?: { competitionId?: string; silent?: boolean }) => {
       if (params?.silent) return;
-      toast.error('Error al sincronizar partidos');
+      const message =
+        _error instanceof Error
+          ? _error.message
+          : typeof _error === 'string'
+            ? _error
+            : null;
+      toast.error(message ? `Error al sincronizar: ${message}` : 'Error al sincronizar partidos');
     },
   });
 }
