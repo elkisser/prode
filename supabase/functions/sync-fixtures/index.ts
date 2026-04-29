@@ -585,7 +585,9 @@ function mapTheSportsDbStatusToDb(
       return [];
     })();
 
-    if (competitionId && leaguesToSync.length === 0) return jsonResponse(400, { success: false, error: 'competition_id inválido' });
+    if (competitionId && leaguesToSync.length === 0) {
+      return jsonResponse(200, { success: false, error: 'competition_id inválido' });
+    }
 
     if (competitionIdRaw && competitionId && competitionIdRaw !== competitionId) {
       await deleteMatchesByCompetitionId(competitionIdRaw).catch(() => null);
@@ -702,6 +704,6 @@ function mapTheSportsDbStatusToDb(
 
     return jsonResponse(200, { success: true, total });
   } catch (error) {
-    return jsonResponse(500, { success: false, error: error instanceof Error ? error.message : String(error) });
+    return jsonResponse(200, { success: false, error: error instanceof Error ? error.message : String(error) });
   }
 });

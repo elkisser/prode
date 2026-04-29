@@ -1,11 +1,27 @@
 import { supabase, SUPABASE_TABLES } from '@/lib/supabase';
 
+function getInvokeErrorMessage(error: any): string {
+  const fallback = error instanceof Error ? error.message : String(error || 'Error al sincronizar');
+  const ctx = (error as any)?.context;
+  const body = ctx?.body;
+  if (body) {
+    try {
+      const parsed = typeof body === 'string' ? JSON.parse(body) : body;
+      if (parsed?.error) return String(parsed.error);
+      if (parsed?.message) return String(parsed.message);
+    } catch {
+      if (typeof body === 'string' && body.trim()) return body;
+    }
+  }
+  return fallback;
+}
+
 export async function syncLeagueEvents(leagueId: string): Promise<number> {
   const { data, error } = await supabase.functions.invoke('sync-fixtures', {
     body: { competition_id: leagueId },
   });
 
-  if (error) throw error;
+  if (error) throw new Error(getInvokeErrorMessage(error));
   if ((data as any)?.success === false) {
     throw new Error(String((data as any)?.error || 'Error al sincronizar'));
   }
@@ -17,7 +33,7 @@ export async function syncAllLeaguesEvents(): Promise<number> {
     body: {},
   });
 
-  if (error) throw error;
+  if (error) throw new Error(getInvokeErrorMessage(error));
   if ((data as any)?.success === false) {
     throw new Error(String((data as any)?.error || 'Error al sincronizar'));
   }
