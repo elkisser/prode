@@ -58,25 +58,29 @@ function AppContent() {
   return (
     <>
       <RealtimeSubscriptions />
-      <Routes>
-        <Route element={<AuthLayout />}>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-        </Route>
+      <div className="app-shell">
+        <div className="app-scroll">
+          <Routes>
+            <Route element={<AuthLayout />}>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+            </Route>
 
-        <Route path="/auth/callback" element={<AuthCallbackPage />} />
-        <Route path="/invite/:inviteCode" element={<InvitePage />} />
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
+            <Route path="/invite/:inviteCode" element={<InvitePage />} />
 
-        <Route element={<ProtectedLayout />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/leagues" element={<LeaguesPage />} />
-          <Route path="/league/:leagueId" element={<LeaguePage />} />
-          <Route path="/matches" element={<MatchesPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-        </Route>
+            <Route element={<ProtectedLayout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/leagues" element={<LeaguesPage />} />
+              <Route path="/league/:leagueId" element={<LeaguePage />} />
+              <Route path="/matches" element={<MatchesPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+            </Route>
 
-        <Route path="/" element={<NavigateToDashboard />} />
-      </Routes>
+            <Route path="/" element={<NavigateToDashboard />} />
+          </Routes>
+        </div>
+      </div>
     </>
   );
 }
