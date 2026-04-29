@@ -79,7 +79,7 @@ export function useCreateLeague() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leagues'] });
-      toast.success('Liga creada y partidos sincronizados!');
+      toast.success('Liga creada');
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Error al crear la liga');

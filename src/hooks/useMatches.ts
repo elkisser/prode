@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, SUPABASE_TABLES } from '@/lib/supabase';
 import type { Match } from '@/types';
-import { syncAllLeaguesEvents, syncLeagueEvents } from '@/lib/api/matches';
+import { syncAllLeaguesEvents, syncLeagueEvents, type SyncMatchesResult } from '@/lib/api/matches';
 import toast from 'react-hot-toast';
 
 function normalizeCompetitionId(competitionId?: string) {
@@ -42,22 +42,32 @@ export function useSyncMatches() {
     mutationFn: async (params?: { competitionId?: string; silent?: boolean }) => {
       const normalizedCompetitionId = normalizeCompetitionId(params?.competitionId);
       if (normalizedCompetitionId) {
-        const count = await syncLeagueEvents(normalizedCompetitionId);
-        return count;
+        const result = await syncLeagueEvents(normalizedCompetitionId);
+        return result;
       }
-      const total = await syncAllLeaguesEvents();
-      return total;
+      const result = await syncAllLeaguesEvents();
+      return result;
     },
-    onSuccess: (count, params) => {
-      if (count > 0) {
+    onSuccess: (result: SyncMatchesResult, params) => {
+      if (result.synced > 0) {
         const normalizedCompetitionId = normalizeCompetitionId(params?.competitionId);
         queryClient.invalidateQueries({
           queryKey: normalizedCompetitionId ? ['matches', normalizedCompetitionId] : ['matches'],
         });
       }
+      queryClient.invalidateQueries({ queryKey: ['predictions'] });
+      queryClient.invalidateQueries({ queryKey: ['prediction'] });
+      queryClient.invalidateQueries({ queryKey: ['myPredictionsLite'] });
+      queryClient.invalidateQueries({ queryKey: ['leagueStandings'] });
+
       if (params?.silent) return;
-      if (count > 0) {
-        toast.success(`${count} partidos sincronizados`);
+      if (result.mode === 'recalculate_points') {
+        const updated = typeof result.updatedPredictions === 'number' ? result.updatedPredictions : 0;
+        toast.success(updated > 0 ? `Puntos actualizados (${updated})` : 'Puntos actualizados');
+        return;
+      }
+      if (result.synced > 0) {
+        toast.success(`${result.synced} partidos sincronizados`);
       } else {
         toast.error('No se encontraron partidos. Intenta más tarde.');
       }

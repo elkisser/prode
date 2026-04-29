@@ -59,20 +59,56 @@ async function invokeSyncFixturesWithDebug(body: Record<string, any>): Promise<a
   }
 }
 
-export async function syncLeagueEvents(leagueId: string): Promise<number> {
-  const data = await invokeSyncFixturesWithDebug({ competition_id: leagueId });
-  if ((data as any)?.success === false) {
-    throw new Error(String((data as any)?.error || 'Error al sincronizar'));
-  }
-  return Number((data as any)?.total ?? 0);
+export type SyncMatchesResult =
+  | { mode: 'sync'; synced: number; updatedMatches?: number; updatedPredictions?: number }
+  | { mode: 'recalculate_points'; synced: 0; updatedMatches?: number; updatedPredictions?: number };
+
+function isFootballData403(message: string) {
+  const s = String(message || '').toLowerCase();
+  return s.includes('football-data') && (s.includes('403') || s.includes('forbidden'));
 }
 
-export async function syncAllLeaguesEvents(): Promise<number> {
+export async function syncLeagueEvents(leagueId: string): Promise<SyncMatchesResult> {
+  try {
+    const data = await invokeSyncFixturesWithDebug({ competition_id: leagueId });
+    if ((data as any)?.success === false) {
+      throw new Error(String((data as any)?.error || 'Error al sincronizar'));
+    }
+    return {
+      mode: 'sync',
+      synced: Number((data as any)?.total ?? 0),
+      updatedMatches: (data as any)?.updatedMatches,
+      updatedPredictions: (data as any)?.updatedPredictions,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (isFootballData403(message)) {
+      const recalc = await invokeSyncFixturesWithDebug({ action: 'recalculate_points', competition_id: leagueId });
+      if ((recalc as any)?.success === false) {
+        throw new Error(String((recalc as any)?.error || 'Error al recalcular puntos'));
+      }
+      return {
+        mode: 'recalculate_points',
+        synced: 0,
+        updatedMatches: (recalc as any)?.updatedMatches,
+        updatedPredictions: (recalc as any)?.updatedPredictions,
+      };
+    }
+    throw err;
+  }
+}
+
+export async function syncAllLeaguesEvents(): Promise<SyncMatchesResult> {
   const data = await invokeSyncFixturesWithDebug({});
   if ((data as any)?.success === false) {
     throw new Error(String((data as any)?.error || 'Error al sincronizar'));
   }
-  return Number((data as any)?.total ?? 0);
+  return {
+    mode: 'sync',
+    synced: Number((data as any)?.total ?? 0),
+    updatedMatches: (data as any)?.updatedMatches,
+    updatedPredictions: (data as any)?.updatedPredictions,
+  };
 }
 
 export async function updateMatchResults(matchId: number): Promise<number> {

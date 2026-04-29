@@ -513,6 +513,94 @@ async function updatePredictionsForFinishedMatchesByApiFixtureIds(apiFixtureIds:
   }
 }
 
+async function updatePredictionsForFinishedMatchesByCompetitionId(competitionId: string) {
+  const { supabaseUrl, supabaseKey } = getSupabaseAdminConfig();
+
+  const headers = {
+    apikey: supabaseKey,
+    Authorization: `Bearer ${supabaseKey}`,
+  };
+
+  const params = new URLSearchParams();
+  params.set('select', 'id,home_score,away_score,status');
+  params.set('competition_id', `eq.${encodeURIComponent(competitionId)}`);
+
+  const matchesRes = await fetch(`${supabaseUrl}/rest/v1/matches?${params.toString()}`, { headers });
+  if (!matchesRes.ok) {
+    const text = await matchesRes.text().catch(() => '');
+    throw new Error(text?.trim() ? text.trim() : `No se pudieron leer matches (HTTP ${matchesRes.status})`);
+  }
+
+  const matches = (await matchesRes.json().catch(() => [])) as any[];
+  const finished = (matches || []).filter(
+    (m) =>
+      (typeof m?.id === 'string' || typeof m?.id === 'number') &&
+      typeof m?.home_score === 'number' &&
+      typeof m?.away_score === 'number' &&
+      m?.status !== 'in_progress'
+  );
+  if (finished.length === 0) return { updatedMatches: 0, updatedPredictions: 0 };
+
+  const matchById = new Map<string, { home_score: number; away_score: number }>();
+  for (const m of finished) {
+    matchById.set(String(m.id), { home_score: m.home_score, away_score: m.away_score });
+  }
+
+  const matchIds = Array.from(matchById.keys());
+  let updatedPredictions = 0;
+
+  const matchIdChunks = chunkArray(matchIds, 180);
+  for (const matchIdChunk of matchIdChunks) {
+    const quoted = matchIdChunk.map((id) => `"${String(id).replace(/"/g, '\\"')}"`).join(',');
+    const predParams = new URLSearchParams();
+    predParams.set('select', '*');
+    predParams.set('match_id', `in.(${quoted})`);
+
+    const predRes = await fetch(`${supabaseUrl}/rest/v1/predictions?${predParams.toString()}`, { headers });
+    if (!predRes.ok) continue;
+
+    const predictions = (await predRes.json().catch(() => [])) as any[];
+    for (const p of predictions || []) {
+      if (!p?.id || typeof p?.match_id === 'undefined' || p?.match_id === null) continue;
+      const actual = matchById.get(String(p.match_id));
+      if (!actual) continue;
+
+      const predictedHome =
+        typeof p.home_score === 'number'
+          ? p.home_score
+          : typeof p.predicted_home === 'number'
+            ? p.predicted_home
+            : Number(p.predicted_home);
+      const predictedAway =
+        typeof p.away_score === 'number'
+          ? p.away_score
+          : typeof p.predicted_away === 'number'
+            ? p.predicted_away
+            : Number(p.predicted_away);
+
+      if (!Number.isFinite(predictedHome) || !Number.isFinite(predictedAway)) continue;
+
+      const points = calculatePredictionPoints(predictedHome, predictedAway, actual.home_score, actual.away_score);
+      if (typeof p.points === 'number' && p.points === points) continue;
+
+      const updParams = new URLSearchParams();
+      updParams.set('id', `eq.${p.id}`);
+      const updRes = await fetch(`${supabaseUrl}/rest/v1/predictions?${updParams.toString()}`, {
+        method: 'PATCH',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ points }),
+      });
+      if (updRes.ok) updatedPredictions++;
+    }
+  }
+
+  return { updatedMatches: finished.length, updatedPredictions };
+}
+
 async function deleteMatchesByCompetitionId(competitionId: string) {
   const { supabaseUrl, supabaseKey } = getSupabaseAdminConfig();
 
@@ -576,6 +664,12 @@ function mapTheSportsDbStatusToDb(
 
     const competitionIdRaw = payload?.competition_id as string | undefined;
     const competitionId = competitionIdRaw ? normalizeCompetitionId(competitionIdRaw) : undefined;
+
+    if (payload?.action === 'recalculate_points') {
+      if (!competitionId) return jsonResponse(200, { success: false, error: 'competition_id requerido' });
+      const stats = await updatePredictionsForFinishedMatchesByCompetitionId(competitionId);
+      return jsonResponse(200, { success: true, ...stats });
+    }
 
     const leaguesToSync: SupportedLeague[] = (() => {
       if (!competitionId) return SUPPORTED_LEAGUES;
@@ -703,7 +797,8 @@ function mapTheSportsDbStatusToDb(
       total += formatted.length;
     }
 
-    return jsonResponse(200, { success: true, total });
+    const pointsStats = competitionId ? await updatePredictionsForFinishedMatchesByCompetitionId(competitionId).catch(() => null) : null;
+    return jsonResponse(200, { success: true, total, ...(pointsStats || {}) });
   } catch (error) {
     return jsonResponse(200, { success: false, error: error instanceof Error ? error.message : String(error) });
   }
