@@ -109,6 +109,9 @@ export function DashboardPage() {
                   src={resolveAvatarUrl(user?.avatar_url, user?.id || user?.username || 'prode', 80)}
                   alt=""
                   className="w-10 h-10 rounded-full object-cover border border-white/10 shadow-lg group-hover:scale-110 transition-transform"
+                  onError={(e) => {
+                    e.currentTarget.src = resolveAvatarUrl(null, user?.id || user?.username || 'prode', 80);
+                  }}
                 />
               </Link>
             </div>

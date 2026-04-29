@@ -16,12 +16,51 @@ function getInvokeErrorMessage(error: any): string {
   return fallback;
 }
 
-export async function syncLeagueEvents(leagueId: string): Promise<number> {
-  const { data, error } = await supabase.functions.invoke('sync-fixtures', {
-    body: { competition_id: leagueId },
+async function invokeSyncFixturesWithDebug(body: Record<string, any>): Promise<any> {
+  const { data, error } = await supabase.functions.invoke('sync-fixtures', { body });
+  if (!error) return data;
+
+  const message = getInvokeErrorMessage(error);
+  const looksLikeNon2xx = typeof message === 'string' && message.toLowerCase().includes('non-2xx');
+  if (!looksLikeNon2xx) throw new Error(message);
+
+  const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || '';
+  const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || '';
+  if (!supabaseUrl || !supabaseAnonKey) throw new Error(message);
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token || supabaseAnonKey;
+
+  const res = await fetch(`${supabaseUrl.replace(/\/$/, '')}/functions/v1/sync-fixtures`, {
+    method: 'POST',
+    headers: {
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body ?? {}),
   });
 
-  if (error) throw new Error(getInvokeErrorMessage(error));
+  const text = await res.text().catch(() => '');
+  try {
+    const parsed = text ? JSON.parse(text) : null;
+    if (parsed?.success === false) {
+      throw new Error(String(parsed?.error || 'Error al sincronizar'));
+    }
+    if (!res.ok) {
+      throw new Error(String(parsed?.error || parsed?.message || `HTTP ${res.status}`));
+    }
+    return parsed;
+  } catch {
+    if (!res.ok) {
+      throw new Error(text?.trim() ? text.trim() : `Edge Function error HTTP ${res.status}`);
+    }
+    return text;
+  }
+}
+
+export async function syncLeagueEvents(leagueId: string): Promise<number> {
+  const data = await invokeSyncFixturesWithDebug({ competition_id: leagueId });
   if ((data as any)?.success === false) {
     throw new Error(String((data as any)?.error || 'Error al sincronizar'));
   }
@@ -29,11 +68,7 @@ export async function syncLeagueEvents(leagueId: string): Promise<number> {
 }
 
 export async function syncAllLeaguesEvents(): Promise<number> {
-  const { data, error } = await supabase.functions.invoke('sync-fixtures', {
-    body: {},
-  });
-
-  if (error) throw new Error(getInvokeErrorMessage(error));
+  const data = await invokeSyncFixturesWithDebug({});
   if ((data as any)?.success === false) {
     throw new Error(String((data as any)?.error || 'Error al sincronizar'));
   }

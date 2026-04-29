@@ -7,6 +7,21 @@ export function getDefaultAvatarUrl(seed: string, size = 160): string {
   return url.toString();
 }
 
+function sanitizeAvatarUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const cleaned = String(url).trim().replace(/`/g, '').trim();
+  if (!cleaned) return null;
+  if (
+    cleaned.startsWith('https://') ||
+    cleaned.startsWith('http://') ||
+    cleaned.startsWith('data:') ||
+    cleaned.startsWith('blob:')
+  ) {
+    return cleaned;
+  }
+  return null;
+}
+
 export function resolveAvatarUrl(avatarUrl: string | null | undefined, seed: string, size = 160): string {
-  return avatarUrl || getDefaultAvatarUrl(seed, size);
+  return sanitizeAvatarUrl(avatarUrl) || getDefaultAvatarUrl(seed, size);
 }

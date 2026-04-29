@@ -39,9 +39,9 @@ export function LeaguePage() {
   const { data: myPredictions = [] } = useMyPredictionsLite();
 
   const predictionByMatchId = useMemo(() => {
-    const map = new Map<number, (typeof myPredictions)[number]>();
+    const map = new Map<string, (typeof myPredictions)[number]>();
     for (const p of myPredictions) {
-      if (typeof p.match_id === 'number') map.set(p.match_id, p);
+      map.set(String(p.match_id), p);
     }
     return map;
   }, [myPredictions]);
@@ -385,7 +385,7 @@ export function LeaguePage() {
                           key={match.id}
                           match={match}
                           scoringMode={scoringMode}
-                          predictionOverride={predictionByMatchId.get(match.id) ?? null}
+                          predictionOverride={predictionByMatchId.get(String(match.id)) ?? null}
                         />
                       ))}
                     </section>
@@ -463,7 +463,7 @@ export function LeaguePage() {
                             <div key={idx} className="w-full shrink-0">
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 {page.map((m) => {
-                                  const p = predictionByMatchId.get(m.id) ?? null;
+                                  const p = predictionByMatchId.get(String(m.id)) ?? null;
                                   const predictionText = p
                                     ? scoringMode === 'simple'
                                       ? p.home_score === p.away_score
@@ -584,7 +584,7 @@ export function LeaguePage() {
                           key={match.id}
                           match={match}
                           scoringMode={scoringMode}
-                          predictionOverride={predictionByMatchId.get(match.id) ?? null}
+                          predictionOverride={predictionByMatchId.get(String(match.id)) ?? null}
                         />
                       ))
                     )}

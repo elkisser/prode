@@ -19,7 +19,7 @@ export interface Competition {
 }
 
 export interface Match {
-  id: number;
+  id: string | number;
   competition_id: string;
   api_fixture_id: string;
   home_team: string;
@@ -38,7 +38,7 @@ export interface Match {
 export interface Prediction {
   id: string;
   user_id: string;
-  match_id: number;
+  match_id: string | number;
   home_score: number;
   away_score: number;
   points: number;
@@ -89,7 +89,7 @@ export interface JoinLeagueInput {
 }
 
 export interface CreatePredictionInput {
-  match_id: number;
+  match_id: string | number;
   home_score: number;
   away_score: number;
 }

@@ -146,7 +146,7 @@ export function useCreatePrediction() {
   });
 }
 
-export function useMatchPrediction(matchId: number, options?: { enabled?: boolean }) {
+export function useMatchPrediction(matchId: string | number, options?: { enabled?: boolean }) {
   const user = useAuthStore((state) => state.user);
 
   return useQuery({

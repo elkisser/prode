@@ -157,6 +157,10 @@ export function ProfilePage() {
                   src={currentAvatar}
                   alt=""
                   className="w-32 h-32 rounded-[2.5rem] mb-6 object-cover border-4 border-dark-800 relative z-10"
+                  onError={(e) => {
+                    const fallbackSeed = profile?.id || user?.id || profile?.username || user?.email || 'prode';
+                    e.currentTarget.src = resolveAvatarUrl(null, fallbackSeed, 160);
+                  }}
                 />
               ) : (
                 <div className="w-32 h-32 rounded-[2.5rem] bg-dark-800 flex items-center justify-center text-5xl font-black text-white border-4 border-dark-700 mb-6 relative z-10">

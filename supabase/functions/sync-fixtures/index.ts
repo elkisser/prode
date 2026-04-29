@@ -447,24 +447,25 @@ async function updatePredictionsForFinishedMatchesByApiFixtureIds(apiFixtureIds:
     const finished = (matchRows || []).filter(
       (m) =>
         (m?.status === 'finished' || (typeof m?.status === 'string' && m.status.toLowerCase() === 'finished')) &&
-        typeof m?.id === 'number' &&
+        (typeof m?.id === 'string' || typeof m?.id === 'number') &&
         typeof m?.home_score === 'number' &&
         typeof m?.away_score === 'number'
     );
 
     if (finished.length === 0) continue;
 
-    const matchById = new Map<number, { home_score: number; away_score: number }>();
+    const matchById = new Map<string, { home_score: number; away_score: number }>();
     for (const m of finished) {
-      matchById.set(m.id, { home_score: m.home_score, away_score: m.away_score });
+      matchById.set(String(m.id), { home_score: m.home_score, away_score: m.away_score });
     }
 
     const matchIds = Array.from(matchById.keys());
     const matchIdChunks = chunkArray(matchIds, 180);
     for (const matchIdChunk of matchIdChunks) {
+      const quotedMatchIds = matchIdChunk.map((id) => `"${String(id).replace(/"/g, '\\"')}"`).join(',');
       const predParams = new URLSearchParams();
       predParams.set('select', '*');
-      predParams.set('match_id', `in.(${matchIdChunk.join(',')})`);
+      predParams.set('match_id', `in.(${quotedMatchIds})`);
 
       const predRes = await fetch(`${supabaseUrl}/rest/v1/predictions?${predParams.toString()}`, {
         headers,
@@ -473,8 +474,8 @@ async function updatePredictionsForFinishedMatchesByApiFixtureIds(apiFixtureIds:
 
       const predictions = (await predRes.json().catch(() => [])) as any[];
       for (const p of predictions || []) {
-        if (!p?.id || typeof p?.match_id !== 'number') continue;
-        const actual = matchById.get(p.match_id);
+        if (!p?.id || typeof p?.match_id === 'undefined' || p?.match_id === null) continue;
+        const actual = matchById.get(String(p.match_id));
         if (!actual) continue;
 
         const predictedHome =

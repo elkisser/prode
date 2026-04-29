@@ -193,20 +193,23 @@ export function useLeagueStandings(leagueId: string) {
       const userIds = members.map(m => m.user_id);
 
       const competitionId = league?.competition_id ? String(league.competition_id) : null;
-      let matchIds: number[] = [];
+      let matchIds: string[] = [];
       if (competitionId) {
         const { data: matches } = await supabase
           .from(SUPABASE_TABLES.MATCHES)
           .select('id')
           .eq('competition_id', competitionId);
-        matchIds = (matches || []).map((m: any) => m.id).filter((id: any) => typeof id === 'number');
+        matchIds = (matches || [])
+          .map((m: any) => m?.id)
+          .filter((id: any) => id !== null && typeof id !== 'undefined')
+          .map((id: any) => String(id));
       }
 
       const { data: predictions } = await supabase
         .from(SUPABASE_TABLES.PREDICTIONS)
         .select('user_id, points')
         .in('user_id', userIds)
-        .in('match_id', matchIds.length > 0 ? matchIds : [-1])
+        .in('match_id', matchIds.length > 0 ? matchIds : ['__none__'])
         .gt('points', 0);
 
       const { data: profiles } = await supabase

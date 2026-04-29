@@ -71,6 +71,9 @@ export function StandingsTable({ standings, isLoading }: StandingsTableProps) {
                   src={resolveAvatarUrl(standing.avatar_url, standing.user_id || standing.username, 96)}
                   alt=""
                   className="w-10 h-10 md:w-12 md:h-12 rounded-2xl object-cover border-2 border-white/10"
+                  onError={(e) => {
+                    e.currentTarget.src = resolveAvatarUrl(null, standing.user_id || standing.username, 96);
+                  }}
                 />
                 {standing.position === 1 && (
                   <div className="absolute -top-2 -right-2 text-lg">👑</div>

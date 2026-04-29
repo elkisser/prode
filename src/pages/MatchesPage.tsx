@@ -13,9 +13,9 @@ export function MatchesPage() {
   const { data: myPredictions = [] } = useMyPredictionsLite();
 
   const predictionByMatchId = useMemo(() => {
-    const map = new Map<number, (typeof myPredictions)[number]>();
+    const map = new Map<string, (typeof myPredictions)[number]>();
     for (const p of myPredictions) {
-      if (typeof p.match_id === 'number') map.set(p.match_id, p);
+      map.set(String(p.match_id), p);
     }
     return map;
   }, [myPredictions]);
@@ -31,7 +31,7 @@ export function MatchesPage() {
   };
 
   const filteredMatches = onlyMyPredictions
-    ? matches.filter((m) => predictionByMatchId.has(m.id))
+    ? matches.filter((m) => predictionByMatchId.has(String(m.id)))
     : matches;
 
   const pendingMatches = filteredMatches.filter((m) => m.status === 'pending');
@@ -143,7 +143,7 @@ export function MatchesPage() {
                     <MatchCard
                       key={match.id}
                       match={match}
-                      predictionOverride={predictionByMatchId.get(match.id) ?? null}
+                      predictionOverride={predictionByMatchId.get(String(match.id)) ?? null}
                     />
                   ))}
                 </div>
@@ -163,7 +163,7 @@ export function MatchesPage() {
                     <MatchCard
                       key={match.id}
                       match={match}
-                      predictionOverride={predictionByMatchId.get(match.id) ?? null}
+                      predictionOverride={predictionByMatchId.get(String(match.id)) ?? null}
                     />
                   ))}
                 </div>
